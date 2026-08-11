@@ -1,0 +1,20 @@
+{
+  "name": "@workspace/loopy-bot",
+  "version": "1.0.0",
+  "description": "Loopy - Professional Feature-Rich Discord Bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "@discordjs/voice": "^0.19.2",
+    "@anthropic-ai/sdk": "^0.27.0",
+    "node-cron": "^3.0.3",
+    "axios": "^1.7.7",
+    "ms": "^2.1.3",
+    "play-dl": "^1.9.7"
+  }
+}
