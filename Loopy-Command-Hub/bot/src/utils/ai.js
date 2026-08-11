@@ -1,21 +1,32 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
-});
-
 const MODEL = 'claude-haiku-4-5'; // Fast model for bot responses
+let client;
+
+function getClient() {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (!client) {
+    client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      ...(process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL
+        ? { baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL }
+        : {}),
+    });
+  }
+  return client;
+}
 
 /**
  * Send a message to Claude and get a response
  */
 async function ask(prompt, systemPrompt = null, maxTokens = 1024) {
   try {
+    const anthropic = getClient();
+    if (!anthropic) return null;
     const messages = [{ role: 'user', content: prompt }];
     const params = { model: MODEL, max_tokens: maxTokens, messages };
     if (systemPrompt) params.system = systemPrompt;
-    const response = await client.messages.create(params);
+    const response = await anthropic.messages.create(params);
     return response.content[0]?.text || 'No response generated.';
   } catch (err) {
     console.error('[AI] Error:', err.message);
@@ -101,4 +112,30 @@ Owner instructions: ${instructions || 'Answer the user and ask clarifying questi
   return await ask(`Recent ticket conversation:\n${transcript}\n\nWrite the next helpful reply to the ticket user.`, systemPrompt, 700);
 }
 
-module.exports = { ask, evaluateRuleViolation, generateInfo, evaluateVerifyAnswers, generateRoast, generateCompliment, answerQuestion, summarizeBackgroundCheck, answerTicket };
+/**
+ * General assistant for members who mention Loopy. It can explain code,
+ * suggest UI improvements, and answer server questions without claiming
+ * that it changed files or performed a staff action.
+ */
+async function answerAssistant(prompt, context = '') {
+  const systemPrompt = `You are Loopy, a helpful Discord assistant.
+Answer clearly and practically. You may help with coding, UI ideas, debugging,
+and general server questions. Never claim to have changed code, joined a server,
+granted permissions, or taken a moderation action. Never use @everyone or @here.
+Keep replies under 1,500 characters and use Discord-friendly Markdown.
+${context ? `Useful recent context:\n${context}` : ''}`;
+  return ask(prompt, systemPrompt, 8192);
+}
+
+module.exports = {
+  ask,
+  evaluateRuleViolation,
+  generateInfo,
+  evaluateVerifyAnswers,
+  generateRoast,
+  generateCompliment,
+  answerQuestion,
+  summarizeBackgroundCheck,
+  answerTicket,
+  answerAssistant,
+};

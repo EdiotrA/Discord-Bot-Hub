@@ -47,15 +47,25 @@ async function handleVerifyModal(interaction) {
   await interaction.editReply({ embeds: [Embed.roblox('Verified! ✅', `You are now verified as **${user.name}**.`, [{ name: 'Roblox ID', value: String(user.id), inline: true }], thumbnail)] });
 }
 
+function buildVerifyModal() {
+  return new ModalBuilder().setCustomId('verify_modal').setTitle('Roblox Verification')
+    .addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('roblox_username')
+        .setLabel('Your Roblox Username')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('e.g. BuilderMan'),
+    ));
+}
+
 module.exports = {
   data: new SlashCommandBuilder().setName('verify').setDescription('Verify your Roblox account'),
   async execute(interaction) {
     const existing = db.prepare('SELECT roblox_username FROM verifications WHERE guild_id = ? AND discord_user_id = ?').get(interaction.guildId, interaction.user.id);
     if (existing) return interaction.reply({ embeds: [Embed.warning('Already Verified', `You are already verified as **${existing.roblox_username}**. Use \`/unverify\` to reset.`)], ephemeral: true });
-    const code = Roblox.generateVerifyCode(interaction.user.id);
-    const modal = new ModalBuilder().setCustomId('verify_modal').setTitle('Roblox Verification')
-      .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('roblox_username').setLabel('Your Roblox Username').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('e.g. BuilderMan')));
-    await interaction.showModal(modal);
+    await interaction.showModal(buildVerifyModal());
   },
   handleVerifyModal,
+  buildVerifyModal,
 };

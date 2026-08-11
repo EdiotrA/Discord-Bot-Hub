@@ -20,6 +20,27 @@ module.exports = {
     console.log(`[Loopy] Logged in as ${client.user.tag}`);
     console.log(`[Loopy] Serving ${client.guilds.cache.size} guilds`);
 
+    // Register from the loaded command collection so a separate client ID
+    // secret and a second deploy workflow are not required.
+    try {
+      // Discord permits 100 global slash commands. These older, low-use
+      // modules remain in the codebase but are intentionally not exposed in
+      // the slash menu so the click-ready hub and current core commands fit.
+      const hiddenLegacyCommands = new Set([
+        'applicationview',
+        'backgroundcheck',
+        'botjoingroup',
+        'pingstop',
+      ]);
+      const commands = [...client.commands.values()]
+        .filter(command => !hiddenLegacyCommands.has(command.data.name))
+        .map(command => command.data.toJSON());
+      await client.application.commands.set(commands);
+      console.log(`[Loopy] Registered ${commands.length} slash commands`);
+    } catch (error) {
+      console.error('[Loopy] Command registration failed:', error.message);
+    }
+
     // Rotate presence
     const rotate = () => {
       client.user.setPresence({

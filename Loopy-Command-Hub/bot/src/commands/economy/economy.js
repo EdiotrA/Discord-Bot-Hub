@@ -18,6 +18,11 @@ module.exports = {
       .addIntegerOption(o => o.setName('wager').setDescription('Coins to wager').setMinValue(1).setMaxValue(Economy.MAX_WAGER).setRequired(true)))
     .addSubcommand(s => s.setName('dicebet').setDescription('Bet coins on a high or low dice roll')
       .addStringOption(o => o.setName('guess').setDescription('High is 8-12; low is 2-6; 7 refunds').setRequired(true).addChoices({ name: 'High', value: 'high' }, { name: 'Low', value: 'low' }))
+      .addIntegerOption(o => o.setName('wager').setDescription('Coins to wager').setMinValue(1).setMaxValue(Economy.MAX_WAGER).setRequired(true)))
+    .addSubcommand(s => s.setName('blackjack').setDescription('Play a quick automatic blackjack hand')
+      .addIntegerOption(o => o.setName('wager').setDescription('Coins to wager').setMinValue(1).setMaxValue(Economy.MAX_WAGER).setRequired(true)))
+    .addSubcommand(s => s.setName('roulette').setDescription('Bet on an exact roulette number')
+      .addIntegerOption(o => o.setName('number').setDescription('Pick a number from 0 to 36').setMinValue(0).setMaxValue(36).setRequired(true))
       .addIntegerOption(o => o.setName('wager').setDescription('Coins to wager').setMinValue(1).setMaxValue(Economy.MAX_WAGER).setRequired(true))),
 
   async execute(interaction) {
@@ -76,6 +81,37 @@ module.exports = {
       const won = side === result;
       Economy.changeWallet(guildId, interaction.user.id, won ? wager : -wager);
       return interaction.reply({ embeds: [Embed.game('🪙 Coin Bet', `The coin landed on **${result}**.\n${won ? `🎉 You won **${wager.toLocaleString()}** coins!` : `😢 You lost **${wager.toLocaleString()}** coins.`}`)] });
+    }
+
+    if (sub === 'blackjack') {
+      const cardValue = () => Math.floor(Math.random() * 10) + 2;
+      const player = [cardValue(), cardValue()];
+      const dealer = [cardValue(), cardValue()];
+      const playerTotal = player.reduce((sum, card) => sum + card, 0);
+      const dealerTotal = dealer.reduce((sum, card) => sum + card, 0);
+      const won = playerTotal > dealerTotal && playerTotal <= 21;
+      const push = playerTotal === dealerTotal || (playerTotal > 21 && dealerTotal > 21);
+      const delta = push ? 0 : won ? wager : -wager;
+      Economy.changeWallet(guildId, interaction.user.id, delta);
+      return interaction.reply({
+        embeds: [Embed.game(
+          '🃏 Quick Blackjack',
+          `**Your hand:** ${player.join(' + ')} = **${playerTotal}**\n**Dealer hand:** ${dealer.join(' + ')} = **${dealerTotal}**\n\n${push ? '🤝 Push — your wager was returned.' : won ? `🎉 You won **${wager.toLocaleString()}** coins!` : `😢 You lost **${wager.toLocaleString()}** coins.`}`,
+        )],
+      });
+    }
+
+    if (sub === 'roulette') {
+      const pick = interaction.options.getInteger('number');
+      const result = Math.floor(Math.random() * 37);
+      const won = pick === result;
+      Economy.changeWallet(guildId, interaction.user.id, won ? wager * 35 : -wager);
+      return interaction.reply({
+        embeds: [Embed.game(
+          '🎡 Roulette',
+          `You picked **${pick}** and the wheel landed on **${result}**.\n${won ? `🎉 Exact hit! You won **${(wager * 35).toLocaleString()}** coins!` : `The house wins. You lost **${wager.toLocaleString()}** coins.`}`,
+        )],
+      });
     }
 
     const guess = interaction.options.getString('guess');

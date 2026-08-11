@@ -58,6 +58,80 @@ module.exports = {
     if (interaction.isButton()) {
       const [action, ...args] = interaction.customId.split(':');
 
+      if (interaction.customId === 'verify_start') {
+        const { buildVerifyModal } = require('../commands/roblox/verify');
+        return interaction.showModal(buildVerifyModal());
+      }
+
+      if (action === 'hub') {
+        if (args[0] === 'verify') {
+          const { buildVerifyModal } = require('../commands/roblox/verify');
+          return interaction.showModal(buildVerifyModal());
+        }
+        if (args[0] === 'ticket') {
+          const { handleTicketOpen } = require('../commands/tickets/ticket-panel');
+          return handleTicketOpen(interaction, 'general');
+        }
+        if (args[0] === 'assistant') {
+          const { buildAssistantModal } = require('../commands/utility/assistant');
+          return interaction.showModal(buildAssistantModal());
+        }
+        if (args[0] === 'economy') {
+          return interaction.reply({
+            embeds: [Embed.game('Economy Hub', 'Choose an action below. Daily gives a free reward, and Coin Bet uses a 25-coin quick wager.')],
+            components: [new (require('discord.js').ActionRowBuilder)().addComponents(
+              new (require('discord.js').ButtonBuilder)().setCustomId('economy:daily').setLabel('Claim Daily').setStyle(require('discord.js').ButtonStyle.Success),
+              new (require('discord.js').ButtonBuilder)().setCustomId('economy:coinflip').setLabel('Quick Coin Bet').setStyle(require('discord.js').ButtonStyle.Primary),
+            )],
+            ephemeral: true,
+          });
+        }
+        if (args[0] === 'mog') {
+          return interaction.reply({
+            embeds: [Embed.game('Mog Hub', 'Browse your Mog profile, the leaderboard, or the shop.')],
+            components: [new (require('discord.js').ActionRowBuilder)().addComponents(
+              new (require('discord.js').ButtonBuilder)().setCustomId('mog:profile').setLabel('My Profile').setStyle(require('discord.js').ButtonStyle.Primary),
+              new (require('discord.js').ButtonBuilder)().setCustomId('mog:leaderboard').setLabel('Leaderboard').setStyle(require('discord.js').ButtonStyle.Secondary),
+              new (require('discord.js').ButtonBuilder)().setCustomId('mog:shop').setLabel('Shop').setStyle(require('discord.js').ButtonStyle.Secondary),
+            )],
+            ephemeral: true,
+          });
+        }
+      }
+
+      if (action === 'economy') {
+        const Economy = require('../utils/economy');
+        if (args[0] === 'daily') {
+          const result = Economy.claimDaily(interaction.guildId, interaction.user.id);
+          if (!result.claimed) return interaction.reply({ embeds: [Embed.warning('Already Claimed', `Come back in **${Economy.formatTime(result.remaining)}**.`)], ephemeral: true });
+          return interaction.reply({ embeds: [Embed.success('Daily Claimed', `You received **${result.amount.toLocaleString()}** coins.`)], ephemeral: true });
+        }
+        if (args[0] === 'coinflip') {
+          const wager = 25;
+          const account = Economy.getBalance(interaction.guildId, interaction.user.id);
+          if (account.wallet < wager) return interaction.reply({ embeds: [Embed.error('Not Enough Coins', 'You need 25 wallet coins for the quick bet.')], ephemeral: true });
+          const result = Math.random() < 0.5 ? 'heads' : 'tails';
+          const won = result === 'heads';
+          Economy.changeWallet(interaction.guildId, interaction.user.id, won ? wager : -wager);
+          return interaction.reply({ embeds: [Embed.game('Quick Coin Bet', `The coin landed on **${result}**.\n${won ? 'You won 25 coins.' : 'You lost 25 coins.'}`)], ephemeral: true });
+        }
+      }
+
+      if (action === 'mog') {
+        const Mog = require('../utils/mog');
+        if (args[0] === 'profile') {
+          const profile = Mog.ensureProfile(interaction.guildId, interaction.user.id);
+          return interaction.reply({ embeds: [Embed.game('Mog Profile', `${interaction.user}\n\n**Mog Points:** ${profile.points}\n**Wins:** ${profile.wins} • **Losses:** ${profile.losses}\n**Pet:** \`${profile.pet}\`\n**Aura:** \`${profile.aura}\`\n**Power:** \`${profile.power}\``)], ephemeral: true });
+        }
+        if (args[0] === 'leaderboard') {
+          const rows = Mog.leaderboard(interaction.guildId);
+          return interaction.reply({ embeds: [Embed.leaderboard('Mog Leaderboard', rows.length ? rows.map((r, i) => `**${i + 1}.** <@${r.user_id}> — **${r.points}** points`).join('\n') : 'No Mog matches yet.', [])], ephemeral: true });
+        }
+        if (args[0] === 'shop') {
+          return interaction.reply({ embeds: [Embed.info('Mog Shop', Mog.shopLines().join('\n'))], ephemeral: true });
+        }
+      }
+
       // Ticket open button
       if (action === 'ticket_open') {
         const { handleTicketOpen } = require('../commands/tickets/ticket-panel');
@@ -149,6 +223,11 @@ module.exports = {
       if (action === 'rank_modal') {
         const { handleRankModal } = require('../commands/roblox/rankrequest');
         return handleRankModal(interaction);
+      }
+
+      if (action === 'assistant_modal') {
+        const { handleAssistantModal } = require('../commands/utility/assistant');
+        return handleAssistantModal(interaction);
       }
     }
   },

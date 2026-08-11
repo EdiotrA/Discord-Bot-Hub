@@ -4,7 +4,9 @@ const AntiScam = require('../utils/antiScam');
 const ExpUtil = require('../utils/exp');
 const Embed = require('../utils/embed');
 const AI = require('../utils/ai');
+const Music = require('../utils/music');
 const ticketAiCooldowns = new Map();
+const assistantCooldowns = new Map();
 
 module.exports = {
   name: 'messageCreate',
@@ -111,6 +113,48 @@ module.exports = {
           if (response) await message.channel.send({ content: response.replace(/@everyone|@here/g, '@ staff') });
         } catch (error) {
           console.error('[Ticket AI]', error.message);
+        }
+      }
+    }
+
+    // ── YouTube link autoplay ─────────────────────────────────────────────
+    // A member who is in voice can paste a YouTube video link and Loopy will
+    // join that same channel. Anti-link moderation runs before this block.
+    const youtubeUrl = message.content.match(/https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=[\w-]+|youtu\.be\/[\w-]+)/i)?.[0];
+    if (youtubeUrl && message.member?.voice?.channel) {
+      try {
+        const voiceChannel = message.member.voice.channel;
+        const song = await Music.resolveSong(youtubeUrl);
+        const queue = Music.ensureQueue(guildId, voiceChannel, message.channel);
+        await Music.waitUntilReady(queue);
+        Music.enqueue(queue, song);
+        await message.react('▶️').catch(() => {});
+      } catch (error) {
+        await message.reply({ embeds: [Embed.error('Music Link', error.message.slice(0, 600))] }).catch(() => {});
+      }
+    }
+
+    // ── Mention-aware AI helper ───────────────────────────────────────────
+    if (message.mentions.users.has(message.client.user.id) && !ticket) {
+      const lastResponse = assistantCooldowns.get(guildId) || 0;
+      if (Date.now() - lastResponse >= 15_000) {
+        assistantCooldowns.set(guildId, Date.now());
+        const prompt = message.content
+          .replace(new RegExp(`<@!?${message.client.user.id}>`, 'g'), '')
+          .trim();
+        if (prompt) {
+          try {
+            const recent = await message.channel.messages.fetch({ limit: 6 });
+            const context = [...recent.values()].reverse()
+              .filter(m => m.id !== message.id)
+              .map(m => `${m.author.tag}: ${m.content || '[attachment/embed]'}`)
+              .join('\n')
+              .slice(-2500);
+            const response = await AI.answerAssistant(prompt, context);
+            if (response) await message.reply({ content: response.replace(/@everyone|@here/g, '@ staff') });
+          } catch (error) {
+            console.error('[Assistant]', error.message);
+          }
         }
       }
     }

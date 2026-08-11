@@ -80,16 +80,25 @@ async function waitUntilReady(queue) {
 }
 
 async function resolveSong(query) {
-  if (play.yt_validate(query) === 'video') {
-    const info = await play.video_info(query);
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) throw new Error('Enter a YouTube link or a song name.');
+
+  const validation = play.yt_validate(cleanQuery);
+  if (validation === 'video') {
+    const info = await play.video_info(cleanQuery);
+    const details = info.video_details;
     return {
-      title: info.video_details.title,
-      url: info.video_details.url,
-      duration: info.video_details.durationRaw || 'live',
-      thumbnail: info.video_details.thumbnails?.[0]?.url,
+      title: details.title,
+      url: details.url || cleanQuery,
+      duration: details.durationRaw || 'live',
+      thumbnail: details.thumbnails?.at(-1)?.url,
     };
   }
-  const results = await play.search(query, { limit: 1, source: { youtube: 'video' } });
+  if (validation === 'playlist') {
+    throw new Error('Playlist links are not supported yet. Paste a video link or search for a song.');
+  }
+
+  const results = await play.search(cleanQuery, { limit: 1, source: { youtube: 'video' } });
   if (!results.length) throw new Error('No results found.');
   const result = results[0];
   return {
@@ -103,15 +112,19 @@ async function resolveSong(query) {
 async function playNext(queue) {
   if (!queue.songs.length) {
     queue.current = null;
+    queue.resource = null;
     return;
   }
   queue.loading = true;
   const song = queue.songs[0];
   queue.current = song;
   try {
-    const stream = await play.stream(song.url, { quality: 2, discordPlayerCompatibility: true });
+    const stream = await play.stream(song.url, {
+      quality: 2,
+      discordPlayerCompatibility: true,
+    });
     const resource = createAudioResource(stream.stream, {
-      inputType: stream.type === 'opus' ? StreamType.WebmOpus : StreamType.Arbitrary,
+      inputType: ['opus', 'webm_opus'].includes(stream.type) ? StreamType.WebmOpus : StreamType.Arbitrary,
       inlineVolume: true,
     });
     resource.volume?.setVolume(queue.volume / 100);
