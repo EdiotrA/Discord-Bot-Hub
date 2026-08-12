@@ -50,13 +50,14 @@ async function resolveSong(query) {
   return results[0];
 }
 
-// ── yt-dlp → ffmpeg → OGG Opus pipeline ────────────────────────────────────
-// Using ffmpeg to transcode means @discordjs/opus native module is NOT needed.
-// @discordjs/voice accepts StreamType.OggOpus natively.
+// ── yt-dlp → ffmpeg → raw PCM pipeline ─────────────────────────────────────
+// Raw PCM (s16le, 48 kHz, stereo) + StreamType.Raw is the most reliable path:
+// @discordjs/voice feeds it straight to opusscript for encoding — no OGG
+// framing issues, no silent-failure quirks from prism-media's OGG demuxer.
 
 function createYtdlpStream(url) {
   return new Promise((resolve, reject) => {
-    // Step 1: yt-dlp extracts best audio and pipes raw bytes
+    // Step 1: yt-dlp downloads best audio and pipes raw bytes to ffmpeg
     const ytdlp = spawn('yt-dlp', [
       '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
       '--no-playlist',
@@ -67,34 +68,36 @@ function createYtdlpStream(url) {
       url,
     ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-    // Step 2: ffmpeg transcodes to OGG Opus (no native opus encoder needed)
+    // Step 2: ffmpeg → signed 16-bit PCM at 48 kHz stereo (StreamType.Raw)
+    // Resolve on 'spawn' so zero bytes are consumed before @discordjs/voice reads.
     const ffmpeg = spawn('ffmpeg', [
-      '-i', 'pipe:0',          // read from yt-dlp stdout
-      '-vn',                   // strip video
-      '-acodec', 'libopus',
-      '-b:a', '128k',
-      '-f', 'ogg',
-      'pipe:1',                // write ogg to stdout
+      '-i', 'pipe:0',
+      '-vn',
+      '-f', 's16le',
+      '-ar', '48000',
+      '-ac', '2',
+      'pipe:1',
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
-    // Pipe yt-dlp → ffmpeg
     ytdlp.stdout.pipe(ffmpeg.stdin);
 
     let errBuf = '';
     ytdlp.stderr.on('data', d => { errBuf += d.toString(); });
-    ffmpeg.stderr.on('data', () => {}); // suppress ffmpeg info logs
+    ffmpeg.stderr.on('data', () => {});
+    ytdlp.on('error', err => reject(err));
+    ffmpeg.on('error', err => reject(err));
 
-    ytdlp.on('error', reject);
-    ffmpeg.on('error', reject);
+    let resolved = false;
 
-    let started = false;
-    ffmpeg.stdout.once('data', () => {
-      started = true;
+    // Resolve as soon as ffmpeg process is alive — hand the stream over intact
+    ffmpeg.on('spawn', () => {
+      resolved = true;
       resolve({ stream: ffmpeg.stdout, procs: [ytdlp, ffmpeg] });
     });
 
+    // If ffmpeg dies before spawning or before producing data
     ffmpeg.on('close', code => {
-      if (!started) reject(new Error(errBuf.slice(0, 300) || `Audio pipeline failed (ffmpeg code ${code})`));
+      if (!resolved) reject(new Error(errBuf.slice(0, 300) || `ffmpeg exited early (code ${code})`));
     });
   });
 }
@@ -190,9 +193,9 @@ async function playNext(queue) {
     const { stream, procs } = await createYtdlpStream(song.url);
     queue._procs = procs;
 
-    // OggOpus — @discordjs/voice handles this natively, no native opus module needed
+    // Raw PCM → opusscript encodes it — no silent framing failures
     const resource = createAudioResource(stream, {
-      inputType: StreamType.OggOpus,
+      inputType: StreamType.Raw,
       inlineVolume: true,
     });
     resource.volume?.setVolume(queue.volume / 100);
