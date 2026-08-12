@@ -8,6 +8,20 @@ const Music = require('../utils/music');
 const ticketAiCooldowns = new Map();
 const assistantCooldowns = new Map();
 
+function settingList(guildId, key) {
+  try { return JSON.parse(getSetting(guildId, key) || '[]'); } catch { return []; }
+}
+
+function matchesFilteredWord(content, words) {
+  const normalized = String(content || '').toLowerCase();
+  return words.find(word => {
+    const value = String(word || '').trim().toLowerCase();
+    if (!value) return false;
+    if (value.includes(' ')) return normalized.includes(value);
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\\p{L}\\p{N}])`, 'iu').test(normalized);
+  });
+}
+
 module.exports = {
   name: 'messageCreate',
   async execute(message) {
@@ -75,6 +89,27 @@ module.exports = {
       }
     }
 
+    // ── Bad-word protection ────────────────────────────────────────────────
+    if (getSetting(guildId, 'badword_enabled')) {
+      const exemptRoles = settingList(guildId, 'badword_allowed_roles');
+      const exempt = message.member?.permissions.has(PermissionFlagsBits.ManageMessages)
+        || message.member?.roles.cache.some(role => exemptRoles.includes(role.id));
+      const matchedWord = !exempt && matchesFilteredWord(message.content, settingList(guildId, 'badword_words'));
+      if (matchedWord) {
+        try {
+          await message.delete();
+          const reply = await message.channel.send({ embeds: [Embed.warning('Message Removed', `${message.author}, that message matched this server's word filter.`)] });
+          setTimeout(() => reply.delete().catch(() => {}), 8000);
+          const logChannel = getSetting(guildId, 'log_channel');
+          const log = message.guild.channels.cache.get(logChannel);
+          if (log) await log.send({ embeds: [Embed.warning('Bad-Word Filter', `Removed a message from ${message.author}.\n**Matched:** \`${matchedWord}\``)] }).catch(() => {});
+        } catch (error) {
+          console.error('[BadWord]', error.message);
+        }
+        return;
+      }
+    }
+
     // ── Ping Protection ───────────────────────────────────────────────────
     const pingProtection = getSetting(guildId, 'ping_protection_enabled');
     if (pingProtection && (message.mentions.roles.size > 0 || message.mentions.users.size > 0)) {
@@ -101,7 +136,9 @@ module.exports = {
     if (ticket) {
       const category = db.prepare('SELECT * FROM ticket_categories WHERE guild_id = ? AND name = ?').get(guildId, ticket.category);
       const lastResponse = ticketAiCooldowns.get(message.channelId) || 0;
-      if (category?.ai_enabled && Date.now() - lastResponse >= 20000) {
+      const panelAiEnabled = getSetting(guildId, 'ticket_ai_enabled');
+      const aiEnabled = panelAiEnabled === true || panelAiEnabled === 'true' || category?.ai_enabled;
+      if (aiEnabled && Date.now() - lastResponse >= 20000) {
         ticketAiCooldowns.set(message.channelId, Date.now());
         try {
           const recent = await message.channel.messages.fetch({ limit: 8 });
@@ -109,7 +146,8 @@ module.exports = {
             .map(m => `${m.author.tag}: ${m.content || '[attachment/embed]'}`)
             .join('\n')
             .slice(-5000);
-          const response = await AI.answerTicket(category.ai_instructions, category.label, transcript);
+           const instructions = getSetting(guildId, 'ticket_ai_instructions') || category?.ai_instructions || '';
+           const response = await AI.answerTicket(instructions, category?.label || ticket.category, transcript);
           if (response) await message.channel.send({ content: response.replace(/@everyone|@here/g, '@ staff') });
         } catch (error) {
           console.error('[Ticket AI]', error.message);

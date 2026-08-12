@@ -29,8 +29,11 @@ module.exports = {
       const hiddenLegacyCommands = new Set([
         'applicationview',
         'backgroundcheck',
-        'botjoingroup',
-        'pingstop',
+        'dadjoke',
+        'fact',
+        'fortune',
+        'truthordare',
+        'wouldyourather',
       ]);
       const commands = [...client.commands.values()]
         .filter(command => !hiddenLegacyCommands.has(command.data.name))

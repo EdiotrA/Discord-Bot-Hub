@@ -3,6 +3,15 @@ const Embed = require('../../utils/embed');
 const { db, getSetting } = require('../../database');
 const config = require('../../config');
 
+function autoHelperRoles(guild) {
+  const names = /support|helper|staff|moderator|admin/i;
+  return guild.roles.cache
+    .filter(role => !role.managed && role.id !== guild.id && names.test(role.name))
+    .sort((a, b) => b.position - a.position)
+    .first(5)
+    .map(role => role.id);
+}
+
 module.exports = {
   data: new SlashCommandBuilder().setName('ticketpanel').setDescription('Create a ticket panel in a channel')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -43,12 +52,14 @@ async function handleTicketOpen(interaction, categoryName) {
 
   const ticketCount = db.prepare('SELECT COUNT(*) as c FROM tickets WHERE guild_id = ?').get(gid).c + 1;
   const channelName = `ticket-${interaction.user.username.slice(0,10).toLowerCase().replace(/[^a-z0-9]/g, '')}-${String(ticketCount).padStart(4, '0')}`;
-  const supportRoles = cat ? JSON.parse(cat.support_role_ids || '[]') : [];
+   let supportRoles = [];
+   try { supportRoles = cat ? JSON.parse(cat.support_role_ids || '[]') : []; } catch {}
+   if (!supportRoles.length) supportRoles = autoHelperRoles(interaction.guild);
 
   const permOverwrites = [
     { id: interaction.guild.id, deny: ['ViewChannel'] },
     { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles'] },
-    { id: interaction.client.user.id, allow: ['ViewChannel', 'SendMessages', 'ManageChannels', 'ReadMessageHistory'] },
+     { id: interaction.client.user.id, allow: ['ViewChannel', 'SendMessages', 'ManageChannels', 'ReadMessageHistory', 'ManageMessages'] },
     ...supportRoles.map(rid => ({ id: rid, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles', 'ManageMessages'] })),
   ];
 

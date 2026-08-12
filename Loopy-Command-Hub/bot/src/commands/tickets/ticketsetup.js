@@ -8,7 +8,9 @@ module.exports = {
     .addSubcommand(s => s.setName('addcategory').setDescription('Add a ticket category')
       .addStringOption(o => o.setName('name').setDescription('Internal name (no spaces)').setRequired(true))
       .addStringOption(o => o.setName('label').setDescription('Display label').setRequired(true))
-      .addRoleOption(o => o.setName('supportrole').setDescription('Support role').setRequired(true))
+      .addRoleOption(o => o.setName('supportrole').setDescription('Support role (optional: auto-detect helpers) ').setRequired(false))
+      .addRoleOption(o => o.setName('supportrole2').setDescription('Additional support role').setRequired(false))
+      .addRoleOption(o => o.setName('supportrole3').setDescription('Additional support role').setRequired(false))
       .addStringOption(o => o.setName('emoji').setDescription('Emoji for the category').setRequired(false))
       .addStringOption(o => o.setName('description').setDescription('Category description').setRequired(false))
       .addChannelOption(o => o.setName('logchannel').setDescription('Log channel for this category').setRequired(false).addChannelTypes(ChannelType.GuildText))
@@ -26,7 +28,7 @@ module.exports = {
       .addStringOption(o => o.setName('category').setDescription('Category name').setRequired(true))
       .addBooleanOption(o => o.setName('enabled').setDescription('Enable or disable').setRequired(true)))
     .addSubcommand(s => s.setName('ai').setDescription('Configure natural-language AI replies for a category')
-      .addStringOption(o => o.setName('category').setDescription('Category name').setRequired(true))
+      .addStringOption(o => o.setName('category').setDescription('Optional legacy category scope; leave blank for the whole ticket panel').setRequired(false))
       .addBooleanOption(o => o.setName('enabled').setDescription('Let Loopy reply in tickets in this category').setRequired(true))
       .addStringOption(o => o.setName('instructions').setDescription('What Loopy should do and how it should respond').setRequired(false).setMaxLength(1000))),
   async execute(interaction) {
@@ -37,15 +39,15 @@ module.exports = {
     if (sub === 'addcategory') {
       const name = interaction.options.getString('name').toLowerCase().replace(/\s+/g, '-');
       const label = interaction.options.getString('label');
-      const role = interaction.options.getRole('supportrole');
+      const roles = ['supportrole', 'supportrole2', 'supportrole3'].map(key => interaction.options.getRole(key)).filter(Boolean);
       const emoji = interaction.options.getString('emoji') || '🎫';
       const desc = interaction.options.getString('description') || '';
       const logCh = interaction.options.getChannel('logchannel');
       const timeout = interaction.options.getInteger('timeout') || 1440;
       const maxOpen = interaction.options.getInteger('maxopen') || 1;
       db.prepare('INSERT OR REPLACE INTO ticket_categories (guild_id, name, label, emoji, description, support_role_ids, log_channel_id, timeout_minutes, max_open) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(gid, name, label, emoji, desc, JSON.stringify([role.id]), logCh?.id || null, timeout, maxOpen);
-      return interaction.editReply({ embeds: [Embed.success('Category Created', `**${emoji} ${label}** (\`${name}\`) added.\nSupport: ${role} | Timeout: ${timeout}m | Max open: ${maxOpen}`)] });
+        .run(gid, name, label, emoji, desc, JSON.stringify(roles.map(role => role.id)), logCh?.id || null, timeout, maxOpen);
+      return interaction.editReply({ embeds: [Embed.success('Category Created', `**${emoji} ${label}** (\`${name}\`) added.\nSupport: ${roles.length ? roles.join(', ') : 'Auto-detect helper/support roles when a ticket opens'} | Timeout: ${timeout}m | Max open: ${maxOpen}`)] });
     }
     if (sub === 'removecategory') {
       db.prepare('DELETE FROM ticket_categories WHERE guild_id = ? AND name = ?').run(gid, interaction.options.getString('name'));
@@ -70,13 +72,19 @@ module.exports = {
       return interaction.editReply({ embeds: [Embed.success('Auto-Close Updated', `Auto-close is now **${interaction.options.getBoolean('enabled') ? 'enabled' : 'disabled'}**.`)] });
     }
     if (sub === 'ai') {
-      const category = interaction.options.getString('category').toLowerCase();
       const enabled = interaction.options.getBoolean('enabled');
       const instructions = interaction.options.getString('instructions') || '';
-      const result = db.prepare('UPDATE ticket_categories SET ai_enabled = ?, ai_instructions = ? WHERE guild_id = ? AND name = ?')
-        .run(enabled ? 1 : 0, instructions, gid, category);
-      if (!result.changes) return interaction.editReply({ embeds: [Embed.error('Category Not Found', `No ticket category named \`${category}\` exists.`)] });
-      return interaction.editReply({ embeds: [Embed.success('Ticket AI Updated', `AI replies are now **${enabled ? 'enabled' : 'disabled'}** for \`${category}\`.\n${enabled ? `**Instructions:** ${instructions || 'Use helpful support behavior.'}` : 'Loopy will stay silent in this category.'}`)] });
+      const category = interaction.options.getString('category')?.toLowerCase();
+      if (category) {
+        const result = db.prepare('UPDATE ticket_categories SET ai_enabled = ?, ai_instructions = ? WHERE guild_id = ? AND name = ?')
+          .run(enabled ? 1 : 0, instructions, gid, category);
+        if (!result.changes) return interaction.editReply({ embeds: [Embed.error('Category Not Found', `No ticket category named \`${category}\` exists.`)] });
+      } else {
+        setSetting(gid, 'ticket_ai_enabled', enabled);
+        setSetting(gid, 'ticket_ai_instructions', instructions);
+        db.prepare('UPDATE ticket_categories SET ai_enabled = ?, ai_instructions = ? WHERE guild_id = ?').run(enabled ? 1 : 0, instructions, gid);
+      }
+      return interaction.editReply({ embeds: [Embed.success('Ticket Panel AI Updated', `Loopy replies are now **${enabled ? 'enabled' : 'disabled'}** across the ticket panel.${enabled ? `\n**Instructions:** ${instructions || 'Use helpful support behavior.'}` : '\nLoopy will stay silent until enabled again.'}`)] });
     }
   },
 };
