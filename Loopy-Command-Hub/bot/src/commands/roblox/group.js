@@ -97,6 +97,17 @@ module.exports = {
             .setDescription('Group ID — leave blank to use the server group')
             .setRequired(false)
         )
+    )
+
+    // /group botjoin <id>
+    .addSubcommand(sub =>
+      sub.setName('botjoin')
+        .setDescription("Make Loopy's Roblox account join a group (requires ROBLOX_COOKIE secret)")
+        .addStringOption(o =>
+          o.setName('groupid')
+            .setDescription('Roblox group ID to join')
+            .setRequired(true)
+        )
     ),
 
   async execute(interaction) {
@@ -228,6 +239,84 @@ module.exports = {
           { name: '🆔 Group ID', value: String(groupId), inline: true },
         )
         .setFooter({ text: 'You must be logged in to Roblox to join.' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed], components: [joinRow(groupId)] });
+    }
+
+    // ── /group botjoin ──────────────────────────────────────────────────────
+    if (sub === 'botjoin') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({
+          embeds: [Embed.error('Permission Denied', 'Only **Manage Server** members can use this.')],
+          ephemeral: true,
+        });
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const groupId = interaction.options.getString('groupid').trim();
+
+      if (!/^\d+$/.test(groupId)) {
+        return interaction.editReply({ embeds: [Embed.error('Invalid ID', 'Group IDs are numbers only — e.g. `12345678`.')] });
+      }
+
+      // If cookie not set, show setup instructions
+      if (!process.env.ROBLOX_COOKIE) {
+        const embed = new EmbedBuilder()
+          .setColor(0xFEE75C)
+          .setTitle('⚠️  Setup Required — ROBLOX_COOKIE')
+          .setDescription(
+            'To make Loopy\'s Roblox account join groups, you need to provide its session cookie.\n\n' +
+            '**Steps to get the cookie:**\n' +
+            '1. Log into the **bot\'s Roblox account** in a browser\n' +
+            '2. Open DevTools → **Application** tab → **Cookies** → `www.roblox.com`\n' +
+            '3. Find the cookie named **`.ROBLOSECURITY`** and copy its value\n' +
+            '4. In this Replit project, open **Secrets** and add:\n' +
+            '   - Key: `ROBLOX_COOKIE`\n' +
+            '   - Value: the copied cookie value\n' +
+            '5. Restart the bot, then run `/group botjoin` again\n\n' +
+            '> ⚠️ Keep this secret safe — it gives full access to that Roblox account.'
+          )
+          .setFooter({ text: 'Roblox session cookies expire when the account logs out.' })
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      // Fetch group info first so we can show a nice result
+      const [group, thumbnail, result] = await Promise.all([
+        Roblox.getGroupInfo(groupId),
+        Roblox.getGroupThumbnail(groupId),
+        Roblox.joinGroup(groupId),
+      ]);
+
+      if (!result.success) {
+        if (result.needsCookie) {
+          return interaction.editReply({ embeds: [Embed.error('Cookie Not Set', result.error)] });
+        }
+        // Handle "already a member" gracefully
+        const alreadyMember = result.error?.toLowerCase().includes('already');
+        if (alreadyMember) {
+          const embed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle('✅  Already a Member')
+            .setDescription(`Loopy's Roblox account is **already in ${group?.name || `group ${groupId}`}**.`)
+            .setThumbnail(thumbnail || null)
+            .setTimestamp();
+          return interaction.editReply({ embeds: [embed] });
+        }
+        return interaction.editReply({ embeds: [Embed.error('Could Not Join', result.error)] });
+      }
+
+      const embed = new EmbedBuilder()
+        .setColor(0x57F287)
+        .setTitle(`✅  Joined ${group?.name || `Group ${groupId}`}`)
+        .setDescription(`Loopy's Roblox account has successfully joined the group!`)
+        .setThumbnail(thumbnail || null)
+        .addFields(
+          { name: '🆔 Group ID', value: String(groupId), inline: true },
+          { name: '👥 Members', value: Number(group?.memberCount ?? 0).toLocaleString(), inline: true },
+          { name: '👑 Owner', value: group?.owner?.username || 'Unknown', inline: true },
+        )
+        .setFooter({ text: 'Roblox Group • Loopy Bot' })
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed], components: [joinRow(groupId)] });

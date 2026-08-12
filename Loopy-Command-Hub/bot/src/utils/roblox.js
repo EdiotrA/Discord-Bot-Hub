@@ -153,6 +153,71 @@ async function setUserRank(groupId, userId, roleId) {
 }
 
 /**
+ * Make the bot's Roblox account join a group.
+ * Requires ROBLOX_COOKIE env var (the .ROBLOSECURITY cookie from the bot account).
+ *
+ * Flow:
+ *  1. POST to a protected endpoint to harvest the CSRF token Roblox requires.
+ *  2. POST to the group join endpoint with the cookie + CSRF token.
+ */
+async function joinGroup(groupId) {
+  const cookie = process.env.ROBLOX_COOKIE;
+  if (!cookie) {
+    return {
+      success: false,
+      needsCookie: true,
+      error: 'No `ROBLOX_COOKIE` secret set. See the command reply for setup instructions.',
+    };
+  }
+
+  const cookieHeader = cookie.startsWith('.ROBLOSECURITY=') ? cookie : `.ROBLOSECURITY=${cookie}`;
+
+  try {
+    // Step 1 — harvest CSRF token (Roblox returns it in the response headers of any failed POST)
+    let csrfToken = '';
+    try {
+      await axios.post('https://auth.roblox.com/v2/logout', {}, {
+        headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
+      });
+    } catch (csrfErr) {
+      csrfToken = csrfErr.response?.headers?.['x-csrf-token'] || '';
+    }
+
+    // Step 2 — join the group
+    const res = await axios.post(
+      `${GROUPS_API}/groups/${groupId}/users`,
+      {},
+      {
+        headers: {
+          Cookie: cookieHeader,
+          'X-CSRF-TOKEN': csrfToken,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return { success: true, data: res.data };
+  } catch (err) {
+    const status = err.response?.status;
+    const msg = err.response?.data?.errors?.[0]?.message
+      || err.response?.data?.message
+      || err.message;
+
+    if (status === 401 || status === 403) {
+      return {
+        success: false,
+        error: `Authentication failed (${status}). Your \`ROBLOX_COOKIE\` may be expired — log into the bot Roblox account in a browser, copy a fresh \`.ROBLOSECURITY\` cookie, and update the secret.\n\nDetails: ${msg}`,
+      };
+    }
+    if (status === 400) {
+      // Common 400 reasons: already a member, group is closed/invite-only
+      return { success: false, error: `Could not join: ${msg}` };
+    }
+    return { success: false, error: msg || 'Unknown error from Roblox.' };
+  }
+}
+
+/**
  * Get group icon thumbnail URL
  */
 async function getGroupThumbnail(groupId) {
@@ -216,6 +281,7 @@ module.exports = {
   getUserGroupRank,
   getUserGroups,
   setUserRank,
+  joinGroup,
   getGroupMemberCount,
   getFullProfile,
   generateVerifyCode,
