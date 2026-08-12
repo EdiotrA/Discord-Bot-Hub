@@ -88,18 +88,67 @@ async function getUserGroups(userId) {
 }
 
 /**
- * Set user's rank in group (requires Open Cloud API key with group permissions)
+ * Set user's rank in group (requires Open Cloud API key with group permissions).
+ * @param {string|number} groupId  - Roblox group ID
+ * @param {string|number} userId   - Roblox user ID
+ * @param {string|number} roleId   - Roblox role ID (the actual large ID, NOT the rank number 1-255)
  */
-async function setUserRank(groupId, userId, rankId) {
+async function setUserRank(groupId, userId, roleId) {
+  if (!process.env.ROBLOX_OPEN_CLOUD_KEY) {
+    return {
+      success: false,
+      error: 'No Roblox Open Cloud API key configured. Ask your server admin to set `ROBLOX_OPEN_CLOUD_KEY` in the bot environment.',
+    };
+  }
+
   try {
-    const res = await axios.patch(
-      `${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships/${userId}`,
-      { role: `groups/${groupId}/roles/${rankId}` },
+    // Step 1: look up the membership resource path for this user.
+    // The Roblox Open Cloud v2 memberships endpoint uses a membership ID
+    // that is distinct from the user ID, so we must discover it first.
+    const listRes = await axios.get(
+      `${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships`,
+      {
+        params: { filter: `user == 'users/${userId}'`, maxPageSize: 1 },
+        headers: headers(),
+      }
+    );
+
+    const memberships = listRes.data?.groupMemberships ?? listRes.data?.memberships ?? [];
+    if (!memberships.length) {
+      return { success: false, error: 'User is not a member of this group.' };
+    }
+
+    // The resource path is e.g. "groups/123/memberships/456"
+    const membershipPath = memberships[0].path;
+    const membershipId = membershipPath?.split('/').pop();
+    if (!membershipId) {
+      return { success: false, error: 'Could not determine membership ID from Roblox API response.' };
+    }
+
+    // Step 2: PATCH the membership to assign the new role.
+    const patchRes = await axios.patch(
+      `${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships/${membershipId}`,
+      { role: `groups/${groupId}/roles/${roleId}` },
       { headers: headers() }
     );
-    return { success: true, data: res.data };
+    return { success: true, data: patchRes.data };
   } catch (err) {
-    return { success: false, error: err.response?.data?.message || err.message };
+    const status = err.response?.status;
+    const msg = err.response?.data?.message || err.response?.data?.error || err.message;
+
+    if (status === 403) {
+      return {
+        success: false,
+        error: `Permission denied (403). Ensure your Open Cloud API key has **Group: Write** permission and belongs to the group owner account.\nDetails: ${msg}`,
+      };
+    }
+    if (status === 401) {
+      return {
+        success: false,
+        error: `Invalid API key (401). Check that ROBLOX_OPEN_CLOUD_KEY is correct.\nDetails: ${msg}`,
+      };
+    }
+    return { success: false, error: msg || 'Unknown error from Roblox API.' };
   }
 }
 

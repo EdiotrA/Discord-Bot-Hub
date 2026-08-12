@@ -200,6 +200,7 @@ db.exec(`
     current_rank_id INTEGER,
     requested_rank_id INTEGER NOT NULL,
     requested_rank_name TEXT NOT NULL,
+    requested_role_id INTEGER,
     status TEXT DEFAULT 'pending',
     reviewed_by TEXT,
     created_at INTEGER DEFAULT (unixepoch())
@@ -366,6 +367,8 @@ for (const statement of [
   "ALTER TABLE ticket_categories ADD COLUMN ai_instructions TEXT DEFAULT ''",
   "ALTER TABLE economy ADD COLUMN last_steal_at INTEGER DEFAULT 0",
   "ALTER TABLE giveaways ADD COLUMN past_winner_ids TEXT DEFAULT '[]'",
+  // rank_requests: store actual Roblox role ID (large int) separate from rank number (1-255)
+  "ALTER TABLE rank_requests ADD COLUMN requested_role_id INTEGER",
 ]) {
   try { db.exec(statement); } catch (error) {
     if (!String(error.message).includes('duplicate column name')) throw error;

@@ -30,7 +30,11 @@ async function handleRankModal(interaction) {
   if (!desiredRole) return interaction.editReply({ embeds: [Embed.error('Invalid Rank', `Rank \`${requestedRank}\` not found. Use \`/rank\` to see valid ranks.`)] });
   if (!myRank || (desiredRole.rank >= myRank.rank)) return interaction.editReply({ embeds: [Embed.error('Permission Denied', 'You can only rank users to ranks below your own.')] });
 
-  const id = db.prepare('INSERT INTO rank_requests (guild_id, requester_id, target_user_id, roblox_group_id, current_rank_id, requested_rank_id, requested_rank_name) VALUES (?, ?, ?, ?, ?, ?, ?)').run(gid, interaction.user.id, String(targetUser.id), groupId, targetRank?.rank || 0, desiredRole.rank, desiredRole.name).lastInsertRowid;
+  // Store both the rank number (for display) and the actual Roblox role ID
+  // (required by the Open Cloud API when the request is accepted).
+  const id = db.prepare(
+    'INSERT INTO rank_requests (guild_id, requester_id, target_user_id, roblox_group_id, current_rank_id, requested_rank_id, requested_rank_name, requested_role_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(gid, interaction.user.id, String(targetUser.id), groupId, targetRank?.rank || 0, desiredRole.rank, desiredRole.name, desiredRole.id).lastInsertRowid;
 
   const logCh = getSetting(gid, 'rank_log_channel');
   if (logCh) {
