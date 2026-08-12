@@ -59,6 +59,8 @@ function createYtdlpStream(url) {
       '--no-playlist',
       '--quiet',
       '--no-warnings',
+      // Use android client to bypass "not available on this app" blocks
+      '--extractor-args', 'youtube:player_client=android,web',
       '-o', '-',
       url,
     ];
