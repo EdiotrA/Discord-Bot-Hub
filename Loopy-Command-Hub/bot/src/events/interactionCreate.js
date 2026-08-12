@@ -180,6 +180,18 @@ module.exports = {
         return handleRankDeny(interaction, args[0]);
       }
 
+      // Poll vote buttons
+      if (action === 'poll_vote') {
+        const { handlePollVote } = require('../commands/fun/poll');
+        return handlePollVote(interaction, args[0]);
+      }
+
+      // Giveaway buttons
+      if (action === 'gw_enter' || action === 'gw_entries') {
+        const { handleGiveawayButton } = require('../commands/fun/giveaway');
+        return handleGiveawayButton(interaction, action);
+      }
+
       // Game buttons
       if (action === 'game_ttt' || action === 'game_c4' || action === 'game_rps') {
         const { handleGameButton } = require('../commands/fun/games');

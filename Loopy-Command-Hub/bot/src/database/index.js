@@ -319,6 +319,44 @@ db.exec(`
     protected_user_id TEXT NOT NULL,
     PRIMARY KEY (guild_id, protected_user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS polls (
+    message_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    author_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,
+    ends_at INTEGER NOT NULL,
+    ended INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS poll_votes (
+    message_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    option_index INTEGER NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS giveaways (
+    message_id TEXT PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    host_id TEXT NOT NULL,
+    prize TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    winner_count INTEGER DEFAULT 1,
+    required_role_id TEXT,
+    ends_at INTEGER NOT NULL,
+    ended INTEGER DEFAULT 0,
+    winner_ids TEXT DEFAULT '[]'
+  );
+
+  CREATE TABLE IF NOT EXISTS giveaway_entries (
+    message_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
 `);
 
 // These columns were added after the original ticket schema. SQLite has no
@@ -327,6 +365,7 @@ for (const statement of [
   "ALTER TABLE ticket_categories ADD COLUMN ai_enabled INTEGER DEFAULT 0",
   "ALTER TABLE ticket_categories ADD COLUMN ai_instructions TEXT DEFAULT ''",
   "ALTER TABLE economy ADD COLUMN last_steal_at INTEGER DEFAULT 0",
+  "ALTER TABLE giveaways ADD COLUMN past_winner_ids TEXT DEFAULT '[]'",
 ]) {
   try { db.exec(statement); } catch (error) {
     if (!String(error.message).includes('duplicate column name')) throw error;

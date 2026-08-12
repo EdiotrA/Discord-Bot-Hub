@@ -28,8 +28,8 @@ module.exports = {
       .addStringOption(o => o.setName('category').setDescription('Category name').setRequired(true))
       .addBooleanOption(o => o.setName('enabled').setDescription('Enable or disable').setRequired(true)))
     .addSubcommand(s => s.setName('ai').setDescription('Configure natural-language AI replies for a category')
+      .addBooleanOption(o => o.setName('enabled').setDescription('Let Loopy reply in tickets').setRequired(true))
       .addStringOption(o => o.setName('category').setDescription('Optional legacy category scope; leave blank for the whole ticket panel').setRequired(false))
-      .addBooleanOption(o => o.setName('enabled').setDescription('Let Loopy reply in tickets in this category').setRequired(true))
       .addStringOption(o => o.setName('instructions').setDescription('What Loopy should do and how it should respond').setRequired(false).setMaxLength(1000))),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });

@@ -111,7 +111,10 @@ async function evaluateRuleViolation(rulesText, violationDescription) {
  * Read and summarize info for a topic (used by info channels)
  */
 async function generateInfo(topic, guildContext = '') {
-  return localAssistant(`Give a concise server update about ${topic}`, guildContext);
+  const remote = await ask(
+    `Write a concise, friendly server update about "${topic}" for a Discord info channel.${guildContext ? `\n\nServer context: ${guildContext}` : ''}\n\nKeep it under 900 characters, use Discord Markdown, no @everyone/@here.`,
+  );
+  return remote || localAssistant(`Give a concise server update about ${topic}`, guildContext);
 }
 
 /**
@@ -133,18 +136,28 @@ async function evaluateVerifyAnswers(questions, answers, context = '') {
  * Generate a roast or compliment for fun commands
  */
 async function generateRoast(username) {
-  return `${username}, ${pick(localRoasts, username)}`;
+  const remote = await ask(
+    `Write one short, playful, PG-13 roast aimed at a Discord user named "${username}". Be witty and creative, never cruel, no slurs, no references to protected traits, under 200 characters. Vary style each time (seed: ${Date.now() % 100000}). Respond with the roast only.`,
+  );
+  return remote ? remote.trim() : `${username}, ${pick(localRoasts, username + Date.now())}`;
 }
 
 async function generateCompliment(username) {
-  return `${username}, ${pick(localCompliments, username)}`;
+  const remote = await ask(
+    `Write one short, genuine, creative compliment for a Discord user named "${username}". Warm but not cheesy, under 200 characters. Vary style each time (seed: ${Date.now() % 100000}). Respond with the compliment only.`,
+  );
+  return remote ? remote.trim() : `${username}, ${pick(localCompliments, username + Date.now())}`;
 }
 
 /**
  * Answer a question about a server (info lookup)
  */
 async function answerQuestion(question, context) {
-  return localAssistant(question, context);
+  const remote = await ask(
+    question,
+    `You are Loopy, a helpful Discord server assistant. Answer the member's question clearly and concisely using the provided server context when relevant. Never claim to have performed staff actions. Never use @everyone or @here. Keep replies under 1,500 characters, Discord Markdown.${context ? `\n\nServer context:\n${context}` : ''}`,
+  );
+  return remote || localAssistant(question, context);
 }
 
 /**
@@ -160,7 +173,11 @@ async function summarizeBackgroundCheck(data) {
  * This is intentionally response-only: Claude cannot execute Discord actions.
  */
 async function answerTicket(instructions, category, transcript) {
-  return `Thanks for reaching out about **${category}**. I’m Loopy’s local helper, so I can collect the details for staff. Please include what happened, what you expected, and any relevant screenshots or error text.`;
+  const remote = await ask(
+    `Ticket category: ${category}\n\nConversation so far:\n${transcript}`,
+    `You are Loopy, a support assistant inside a Discord ticket. Follow these owner instructions:\n${instructions || 'Help the member describe their issue clearly so staff can resolve it.'}\n\nYou can only reply with text — never claim to have performed refunds, bans, role changes, or any staff action. If the issue needs a human, say staff will follow up. Keep replies under 1,200 characters, Discord Markdown, no @everyone/@here.`,
+  );
+  return remote || `Thanks for reaching out about **${category}**. Please include what happened, what you expected, and any relevant screenshots or error text so staff can help quickly.`;
 }
 
 /**
@@ -175,7 +192,8 @@ and general server questions. Never claim to have changed code, joined a server,
 granted permissions, or taken a moderation action. Never use @everyone or @here.
 Keep replies under 1,500 characters and use Discord-friendly Markdown.
 ${context ? `Useful recent context:\n${context}` : ''}`;
-  return localAssistant(prompt, context);
+  const remote = await ask(prompt, systemPrompt);
+  return remote || localAssistant(prompt, context);
 }
 
 module.exports = {

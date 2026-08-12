@@ -30,6 +30,7 @@ module.exports = {
         'applicationview',
         'backgroundcheck',
         'dadjoke',
+        'dice',
         'fact',
         'fortune',
         'truthordare',
@@ -117,6 +118,23 @@ module.exports = {
         console.error('[InfoChannel Cron]', err.message);
       }
     });
+
+    // Resume timers for polls and giveaways that were running before restart
+    try {
+      const { schedulePoll, endPoll } = require('../commands/fun/poll');
+      const { scheduleGiveaway, endGiveaway } = require('../commands/fun/giveaway');
+      const now = Math.floor(Date.now() / 1000);
+      for (const poll of db.prepare('SELECT * FROM polls WHERE ended = 0').all()) {
+        if (poll.ends_at <= now) endPoll(client, poll.message_id);
+        else schedulePoll(client, poll);
+      }
+      for (const giveaway of db.prepare('SELECT * FROM giveaways WHERE ended = 0').all()) {
+        if (giveaway.ends_at <= now) endGiveaway(client, giveaway.message_id);
+        else scheduleGiveaway(client, giveaway);
+      }
+    } catch (err) {
+      console.error('[Resume] Failed to resume polls/giveaways:', err.message);
+    }
 
     console.log('[Loopy] Ready! Auto-close and info channel crons started.');
   },

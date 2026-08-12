@@ -22,7 +22,9 @@ module.exports = {
     .addSubcommand(s => s.setName('verifiedrole').setDescription('Role given after Roblox verification')
       .addRoleOption(o => o.setName('role').setDescription('Verified role').setRequired(true)))
     .addSubcommand(s => s.setName('ranklogchannel').setDescription('Set the rank request log channel')
-      .addChannelOption(o => o.setName('channel').setDescription('Rank log channel').setRequired(true).addChannelTypes(ChannelType.GuildText))),
+      .addChannelOption(o => o.setName('channel').setDescription('Rank log channel').setRequired(true).addChannelTypes(ChannelType.GuildText)))
+    .addSubcommand(s => s.setName('verifylogchannel').setDescription('Set the verification log channel')
+      .addChannelOption(o => o.setName('channel').setDescription('Verification log channel').setRequired(true).addChannelTypes(ChannelType.GuildText))),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const sub = interaction.options.getSubcommand();
@@ -37,6 +39,7 @@ module.exports = {
       welcomemessage: ['welcome_message', { name: interaction.options.getString('message') }],
       verifiedrole: ['verified_role', interaction.options.getRole('role')],
       ranklogchannel: ['rank_log_channel', interaction.options.getChannel('channel')],
+      verifylogchannel: ['verify_log_channel', interaction.options.getChannel('channel')],
     };
 
     const [key, val] = keyMap[sub];
