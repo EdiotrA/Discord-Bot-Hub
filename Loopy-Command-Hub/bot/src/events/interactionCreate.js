@@ -9,6 +9,11 @@ module.exports = {
     if (interaction.isAutocomplete()) {
       const command = interaction.client.commands.get(interaction.commandName);
       if (!command) return;
+      // Per-command autocomplete handler (e.g. music play search results)
+      if (typeof command.autocomplete === 'function') {
+        return command.autocomplete(interaction).catch(() => interaction.respond([]).catch(() => {}));
+      }
+      // Generic fallback: autocomplete command names (e.g. /help)
       const focused = interaction.options.getFocused().toLowerCase();
       const choices = [...interaction.client.commands.keys()]
         .filter(name => name.includes(focused))

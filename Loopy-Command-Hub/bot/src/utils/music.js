@@ -8,9 +8,76 @@ const {
   entersState,
   VoiceConnectionStatus,
 } = require('@discordjs/voice');
+const { spawn } = require('child_process');
 const play = require('play-dl');
 
 const queues = new Map();
+
+// ── Search / Metadata (play-dl is fine for this) ───────────────────────────
+
+async function searchSongs(query, limit = 5) {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) return [];
+  try {
+    const validation = play.yt_validate(cleanQuery);
+    if (validation === 'video') {
+      const info = await play.video_info(cleanQuery);
+      const d = info.video_details;
+      return [{
+        title: d.title || 'Unknown',
+        url: d.url || cleanQuery,
+        duration: d.durationRaw || 'live',
+        thumbnail: d.thumbnails?.at(-1)?.url || null,
+      }];
+    }
+    const results = await play.search(cleanQuery, { limit, source: { youtube: 'video' } });
+    return results.map(r => ({
+      title: r.title || 'Unknown',
+      url: r.url,
+      duration: r.durationRaw || 'live',
+      thumbnail: r.thumbnails?.[0]?.url || null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function resolveSong(query) {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) throw new Error('Enter a YouTube link or a song name.');
+  const results = await searchSongs(cleanQuery, 1);
+  if (!results.length) throw new Error('No results found for that query.');
+  return results[0];
+}
+
+// ── yt-dlp streaming (reliable, always up-to-date) ─────────────────────────
+
+function createYtdlpStream(url) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
+      '--no-playlist',
+      '--quiet',
+      '--no-warnings',
+      '-o', '-',
+      url,
+    ];
+    const proc = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let errBuf = '';
+    proc.stderr.on('data', d => { errBuf += d.toString(); });
+
+    // Give yt-dlp a moment to start writing, then resolve with the stdout stream
+    // We reject if yt-dlp exits with a non-zero code before data flows
+    let started = false;
+    proc.stdout.once('data', () => { started = true; resolve({ stream: proc.stdout, proc }); });
+    proc.on('error', reject);
+    proc.on('close', code => {
+      if (!started) reject(new Error(errBuf.slice(0, 300) || `yt-dlp exited with code ${code}`));
+    });
+  });
+}
+
+// ── Queue management ────────────────────────────────────────────────────────
 
 function getQueue(guildId) {
   return queues.get(guildId) || null;
@@ -54,6 +121,7 @@ function ensureQueue(guildId, voiceChannel, textChannel) {
     loop: 'off',
     loading: false,
     resource: null,
+    _ytProc: null,
   };
   player.on(AudioPlayerStatus.Idle, () => finishSong(queue));
   player.on('error', (error) => {
@@ -79,36 +147,6 @@ async function waitUntilReady(queue) {
   return queue;
 }
 
-async function resolveSong(query) {
-  const cleanQuery = String(query || '').trim();
-  if (!cleanQuery) throw new Error('Enter a YouTube link or a song name.');
-
-  const validation = play.yt_validate(cleanQuery);
-  if (validation === 'video') {
-    const info = await play.video_info(cleanQuery);
-    const details = info.video_details;
-    return {
-      title: details.title,
-      url: details.url || cleanQuery,
-      duration: details.durationRaw || 'live',
-      thumbnail: details.thumbnails?.at(-1)?.url,
-    };
-  }
-  if (validation === 'playlist') {
-    throw new Error('Playlist links are not supported yet. Paste a video link or search for a song.');
-  }
-
-  const results = await play.search(cleanQuery, { limit: 1, source: { youtube: 'video' } });
-  if (!results.length) throw new Error('No results found.');
-  const result = results[0];
-  return {
-    title: result.title,
-    url: result.url,
-    duration: result.durationRaw || 'live',
-    thumbnail: result.thumbnails?.[0]?.url,
-  };
-}
-
 async function playNext(queue) {
   if (!queue.songs.length) {
     queue.current = null;
@@ -119,19 +157,22 @@ async function playNext(queue) {
   const song = queue.songs[0];
   queue.current = song;
   try {
-    const stream = await play.stream(song.url, {
-      quality: 2,
-      discordPlayerCompatibility: true,
-    });
-    const resource = createAudioResource(stream.stream, {
-      inputType: ['opus', 'webm_opus'].includes(stream.type) ? StreamType.WebmOpus : StreamType.Arbitrary,
+    // Kill any previous yt-dlp process
+    if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} queue._ytProc = null; }
+
+    const { stream, proc } = await createYtdlpStream(song.url);
+    queue._ytProc = proc;
+
+    const resource = createAudioResource(stream, {
+      inputType: StreamType.Arbitrary,
       inlineVolume: true,
     });
     resource.volume?.setVolume(queue.volume / 100);
     queue.resource = resource;
     queue.player.play(resource);
   } catch (error) {
-    queue.textChannel?.send({ embeds: [require('./embed').error('Playback Error', error.message.slice(0, 600))] }).catch(() => {});
+    const msg = error.message?.slice(0, 500) || 'Unknown error';
+    queue.textChannel?.send({ embeds: [require('./embed').error('Playback Error', `Could not play **${song.title}**.\n\`\`\`${msg}\`\`\``)] }).catch(() => {});
     queue.songs.shift();
     queue.loading = false;
     return playNext(queue);
@@ -163,6 +204,7 @@ function stop(queue) {
   if (!queue) return false;
   queue.songs = [];
   queue.current = null;
+  if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} queue._ytProc = null; }
   queue.player.stop();
   destroyQueue(queue.guildId);
   return true;
@@ -171,7 +213,8 @@ function stop(queue) {
 function destroyQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return;
-  queue.connection.destroy();
+  if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} }
+  try { queue.connection.destroy(); } catch {}
   queues.delete(guildId);
 }
 
@@ -191,6 +234,7 @@ module.exports = {
   getQueue,
   ensureQueue,
   resolveSong,
+  searchSongs,
   enqueue,
   waitUntilReady,
   skip,
