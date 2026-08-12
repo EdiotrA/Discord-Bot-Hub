@@ -50,31 +50,51 @@ async function resolveSong(query) {
   return results[0];
 }
 
-// ── yt-dlp streaming (reliable, always up-to-date) ─────────────────────────
+// ── yt-dlp → ffmpeg → OGG Opus pipeline ────────────────────────────────────
+// Using ffmpeg to transcode means @discordjs/opus native module is NOT needed.
+// @discordjs/voice accepts StreamType.OggOpus natively.
 
 function createYtdlpStream(url) {
   return new Promise((resolve, reject) => {
-    const args = [
+    // Step 1: yt-dlp extracts best audio and pipes raw bytes
+    const ytdlp = spawn('yt-dlp', [
       '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best',
       '--no-playlist',
       '--quiet',
       '--no-warnings',
-      // Use android client to bypass "not available on this app" blocks
       '--extractor-args', 'youtube:player_client=android,web',
       '-o', '-',
       url,
-    ];
-    const proc = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let errBuf = '';
-    proc.stderr.on('data', d => { errBuf += d.toString(); });
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
 
-    // Give yt-dlp a moment to start writing, then resolve with the stdout stream
-    // We reject if yt-dlp exits with a non-zero code before data flows
+    // Step 2: ffmpeg transcodes to OGG Opus (no native opus encoder needed)
+    const ffmpeg = spawn('ffmpeg', [
+      '-i', 'pipe:0',          // read from yt-dlp stdout
+      '-vn',                   // strip video
+      '-acodec', 'libopus',
+      '-b:a', '128k',
+      '-f', 'ogg',
+      'pipe:1',                // write ogg to stdout
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+    // Pipe yt-dlp → ffmpeg
+    ytdlp.stdout.pipe(ffmpeg.stdin);
+
+    let errBuf = '';
+    ytdlp.stderr.on('data', d => { errBuf += d.toString(); });
+    ffmpeg.stderr.on('data', () => {}); // suppress ffmpeg info logs
+
+    ytdlp.on('error', reject);
+    ffmpeg.on('error', reject);
+
     let started = false;
-    proc.stdout.once('data', () => { started = true; resolve({ stream: proc.stdout, proc }); });
-    proc.on('error', reject);
-    proc.on('close', code => {
-      if (!started) reject(new Error(errBuf.slice(0, 300) || `yt-dlp exited with code ${code}`));
+    ffmpeg.stdout.once('data', () => {
+      started = true;
+      resolve({ stream: ffmpeg.stdout, procs: [ytdlp, ffmpeg] });
+    });
+
+    ffmpeg.on('close', code => {
+      if (!started) reject(new Error(errBuf.slice(0, 300) || `Audio pipeline failed (ffmpeg code ${code})`));
     });
   });
 }
@@ -109,6 +129,7 @@ function ensureQueue(guildId, voiceChannel, textChannel) {
     guildId,
     adapterCreator: voiceChannel.guild.voiceAdapterCreator,
     selfDeaf: true,
+    selfMute: false,
   });
   connection.subscribe(player);
   queue = {
@@ -123,7 +144,7 @@ function ensureQueue(guildId, voiceChannel, textChannel) {
     loop: 'off',
     loading: false,
     resource: null,
-    _ytProc: null,
+    _procs: [],
   };
   player.on(AudioPlayerStatus.Idle, () => finishSong(queue));
   player.on('error', (error) => {
@@ -149,6 +170,11 @@ async function waitUntilReady(queue) {
   return queue;
 }
 
+function killProcs(queue) {
+  for (const p of queue._procs) { try { p.kill(); } catch {} }
+  queue._procs = [];
+}
+
 async function playNext(queue) {
   if (!queue.songs.length) {
     queue.current = null;
@@ -159,14 +185,14 @@ async function playNext(queue) {
   const song = queue.songs[0];
   queue.current = song;
   try {
-    // Kill any previous yt-dlp process
-    if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} queue._ytProc = null; }
+    killProcs(queue);
 
-    const { stream, proc } = await createYtdlpStream(song.url);
-    queue._ytProc = proc;
+    const { stream, procs } = await createYtdlpStream(song.url);
+    queue._procs = procs;
 
+    // OggOpus — @discordjs/voice handles this natively, no native opus module needed
     const resource = createAudioResource(stream, {
-      inputType: StreamType.Arbitrary,
+      inputType: StreamType.OggOpus,
       inlineVolume: true,
     });
     resource.volume?.setVolume(queue.volume / 100);
@@ -206,7 +232,7 @@ function stop(queue) {
   if (!queue) return false;
   queue.songs = [];
   queue.current = null;
-  if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} queue._ytProc = null; }
+  killProcs(queue);
   queue.player.stop();
   destroyQueue(queue.guildId);
   return true;
@@ -215,7 +241,7 @@ function stop(queue) {
 function destroyQueue(guildId) {
   const queue = queues.get(guildId);
   if (!queue) return;
-  if (queue._ytProc) { try { queue._ytProc.kill(); } catch {} }
+  killProcs(queue);
   try { queue.connection.destroy(); } catch {}
   queues.delete(guildId);
 }
