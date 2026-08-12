@@ -35,6 +35,10 @@ module.exports = {
         'fortune',
         'truthordare',
         'wouldyourather',
+        // Replaced by the unified /group command
+        'setgroup',
+        'botjoingroup',
+        'groupinfo',
       ]);
       const commands = [...client.commands.values()]
         .filter(command => !hiddenLegacyCommands.has(command.data.name))

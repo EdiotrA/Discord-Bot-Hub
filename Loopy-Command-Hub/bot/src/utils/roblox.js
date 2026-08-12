@@ -153,6 +153,18 @@ async function setUserRank(groupId, userId, roleId) {
 }
 
 /**
+ * Get group icon thumbnail URL
+ */
+async function getGroupThumbnail(groupId) {
+  try {
+    const res = await axios.get(`${THUMBNAILS_API}/groups/icons`, {
+      params: { groupIds: groupId, size: '150x150', format: 'Png', isCircular: false },
+    });
+    return res.data.data?.[0]?.imageUrl || null;
+  } catch { return null; }
+}
+
+/**
  * Get group members count
  */
 async function getGroupMemberCount(groupId) {
@@ -199,6 +211,7 @@ module.exports = {
   getUserById,
   getUserThumbnail,
   getGroupInfo,
+  getGroupThumbnail,
   getGroupRoles,
   getUserGroupRank,
   getUserGroups,
