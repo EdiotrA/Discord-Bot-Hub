@@ -1,8 +1,16 @@
-const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
+const { SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const Embed = require('../../utils/embed');
 const { db, getSetting } = require('../../database');
 const Roblox = require('../../utils/roblox');
 const AI = require('../../utils/ai');
+
+// Members who clicked "I've Joined" for servers Loopy cannot check directly.
+const joinAcks = new Set();
+
+async function handleVerifyJoined(interaction) {
+  joinAcks.add(`${interaction.guild.id}:${interaction.user.id}`);
+  return interaction.showModal(buildVerifyModal());
+}
 
 async function logVerification(interaction, description, success = true) {
   const channelId = getSetting(interaction.guild.id, 'verify_log_channel');
@@ -29,6 +37,39 @@ async function handleVerifyModal(interaction) {
   const hasCode = await Roblox.checkVerifyCode(user.id, code);
   if (!hasCode) {
     return interaction.editReply({ embeds: [Embed.warning('Code Not Found', `Please add this code to your **Roblox profile bio** then run \`/verify\` again:\n\n\`\`\`${code}\`\`\`\n\nGo to: **Roblox → Profile → Edit → About → paste the code → Save**`)] });
+  }
+
+  // Required server joins (configured with /setup verifyjoinserver)
+  const joinServers = getSetting(gid, 'verify_join_servers') || [];
+  if (Array.isArray(joinServers) && joinServers.length) {
+    const pending = [];
+    for (const invite of joinServers) {
+      try {
+        const resolved = await interaction.client.fetchInvite(invite);
+        const targetGuild = resolved.guild ? interaction.client.guilds.cache.get(resolved.guild.id) : null;
+        if (targetGuild) {
+          // Loopy is in the target server — check membership directly.
+          const member = await targetGuild.members.fetch(interaction.user.id).catch(() => null);
+          if (!member) pending.push(invite);
+        } else if (!joinAcks.has(`${gid}:${interaction.user.id}`)) {
+          // Cannot check membership; require the member to confirm once.
+          pending.push(invite);
+        }
+      } catch {
+        if (!joinAcks.has(`${gid}:${interaction.user.id}`)) pending.push(invite);
+      }
+    }
+    if (pending.length) {
+      const rows = [new ActionRowBuilder().addComponents(
+        ...pending.slice(0, 4).map((invite, i) => new ButtonBuilder().setLabel(pending.length === 1 ? 'Join Server' : `Join Server ${i + 1}`).setStyle(ButtonStyle.Link).setURL(invite)),
+        new ButtonBuilder().setCustomId('verify_joined').setLabel("I've Joined — Continue").setStyle(ButtonStyle.Success),
+      )];
+      await logVerification(interaction, `⏳ <@${interaction.user.id}> (Roblox: **${user.name}**) was asked to join required server(s) before verifying.`, false);
+      return interaction.editReply({
+        embeds: [Embed.warning('One More Step', `To verify, you must join ${pending.length === 1 ? 'this server' : 'these servers'} first:\n${pending.map(s => `• ${s}`).join('\n')}\n\nJoin, then click **I've Joined — Continue**.`)],
+        components: rows,
+      });
+    }
   }
 
   // Check AI verify questions
@@ -90,5 +131,6 @@ module.exports = {
     await interaction.showModal(buildVerifyModal());
   },
   handleVerifyModal,
+  handleVerifyJoined,
   buildVerifyModal,
 };

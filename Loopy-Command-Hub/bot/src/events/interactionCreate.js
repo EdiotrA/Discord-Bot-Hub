@@ -58,6 +58,11 @@ module.exports = {
     if (interaction.isButton()) {
       const [action, ...args] = interaction.customId.split(':');
 
+      if (interaction.customId === 'verify_joined') {
+        const { handleVerifyJoined } = require('../commands/roblox/verify');
+        return handleVerifyJoined(interaction);
+      }
+
       if (interaction.customId === 'verify_start') {
         const { buildVerifyModal } = require('../commands/roblox/verify');
         return interaction.showModal(buildVerifyModal());
