@@ -137,8 +137,22 @@ module.exports = {
 
       setSetting(interaction.guildId, 'roblox_group_id', groupId);
 
+      // Automatically get the bot's Roblox account into the group.
+      let botStatus = '⏭️ Skipped (no bot cookie set)';
+      if (process.env.ROBLOX_COOKIE) {
+        const joinResult = await Roblox.ensureBotInGroup(groupId);
+        botStatus = {
+          member: '✅ Already in the group',
+          joined: '✅ Joined automatically',
+          requested: '📨 Join request sent — approve it in group settings',
+          captcha: `🧩 Roblox requires a captcha to join groups. One-time fix: log into the bot account and [click Join here](https://www.roblox.com/groups/${groupId}). Ranking works automatically after that.`,
+          failed: `⚠️ Could not join: ${(joinResult.error || 'unknown error').slice(0, 150)}`,
+        }[joinResult.status];
+      }
+
       const embed = groupEmbed(group, thumbnail, [
         { name: '✅ Status', value: 'Linked to this server', inline: true },
+        { name: '🤖 Bot Account', value: botStatus, inline: true },
       ]);
       embed.setTitle(`✅  Group Linked — ${group.name}`);
       return interaction.editReply({ embeds: [embed], components: [joinRow(groupId)] });
@@ -285,24 +299,41 @@ module.exports = {
       const [group, thumbnail, result] = await Promise.all([
         Roblox.getGroupInfo(groupId),
         Roblox.getGroupThumbnail(groupId),
-        Roblox.joinGroup(groupId),
+        Roblox.ensureBotInGroup(groupId),
       ]);
 
-      if (!result.success) {
-        if (result.needsCookie) {
-          return interaction.editReply({ embeds: [Embed.error('Cookie Not Set', result.error)] });
-        }
-        // Handle "already a member" gracefully
-        const alreadyMember = result.error?.toLowerCase().includes('already');
-        if (alreadyMember) {
-          const embed = new EmbedBuilder()
-            .setColor(0x57F287)
-            .setTitle('✅  Already a Member')
-            .setDescription(`Loopy's Roblox account is **already in ${group?.name || `group ${groupId}`}**.`)
-            .setThumbnail(thumbnail || null)
-            .setTimestamp();
-          return interaction.editReply({ embeds: [embed] });
-        }
+      if (result.status === 'member') {
+        const embed = new EmbedBuilder()
+          .setColor(0x57F287)
+          .setTitle('✅  Already a Member')
+          .setDescription(`Loopy's Roblox account (**${result.botUser?.name || 'bot account'}**) is **already in ${group?.name || `group ${groupId}`}**.`)
+          .setThumbnail(thumbnail || null)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+      if (result.status === 'requested') {
+        const embed = new EmbedBuilder()
+          .setColor(0xFEE75C)
+          .setTitle('📨  Join Request Sent')
+          .setDescription(`**${group?.name || `Group ${groupId}`}** requires approval.\nLoopy's Roblox account sent a join request — approve it in the group's **Join Requests** page.`)
+          .setThumbnail(thumbnail || null)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+      if (result.status === 'captcha') {
+        const embed = new EmbedBuilder()
+          .setColor(0xFEE75C)
+          .setTitle('🧩  Captcha Required (one-time manual join)')
+          .setDescription(
+            `Roblox requires a captcha to join groups via the API — that can't be automated.\n\n` +
+            `**One-time fix:** log into the bot Roblox account (**${result.botUser?.name || 'the bot account'}**) in a browser and [click Join here](https://www.roblox.com/groups/${groupId}).\n\n` +
+            `After that, ranking and everything else works fully automatically.`
+          )
+          .setThumbnail(thumbnail || null)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+      if (result.status === 'failed') {
         return interaction.editReply({ embeds: [Embed.error('Could Not Join', result.error)] });
       }
 

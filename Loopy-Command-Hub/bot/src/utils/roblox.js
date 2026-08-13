@@ -295,6 +295,44 @@ async function getAuthenticatedUser() {
 }
 
 /**
+ * Ensure the bot's Roblox account is in a group — joins (or sends a join
+ * request for approval-required groups) automatically if it isn't.
+ * Returns { status: 'member' | 'joined' | 'requested' | 'failed', ... }
+ */
+async function ensureBotInGroup(groupId) {
+  const me = await getAuthenticatedUser();
+  if (!me) return { status: 'failed', error: 'No valid `ROBLOX_COOKIE` — cannot check bot group membership.' };
+
+  const groups = await getUserGroups(me.id);
+  if (groups.some(g => String(g.group.id) === String(groupId))) {
+    return { status: 'member', botUser: me };
+  }
+
+  const result = await joinGroup(groupId);
+  if (result.success) {
+    // For approval-required groups the same endpoint files a join request;
+    // re-check membership to tell the two outcomes apart.
+    const after = await getUserGroups(me.id);
+    const isMember = after.some(g => String(g.group.id) === String(groupId));
+    return { status: isMember ? 'joined' : 'requested', botUser: me };
+  }
+
+  // "already pending" style errors mean a join request is queued.
+  if (/pending/i.test(result.error || '')) return { status: 'requested', botUser: me };
+
+  // Roblox gates the group-join endpoint behind a captcha challenge. This
+  // cannot be automated — the bot account has to join once manually.
+  if (/challenge is required/i.test(result.error || '')) {
+    return {
+      status: 'captcha',
+      botUser: me,
+      error: `Roblox requires a captcha to join groups — this can't be automated. One-time fix: log into **${me.name}** in a browser and click Join on https://www.roblox.com/groups/${groupId} — after that, ranking works fully automatically.`,
+    };
+  }
+  return { status: 'failed', error: result.error, botUser: me };
+}
+
+/**
  * Get group icon thumbnail URL
  */
 async function getGroupThumbnail(groupId) {
@@ -360,6 +398,7 @@ module.exports = {
   setUserRank,
   joinGroup,
   leaveGroup,
+  ensureBotInGroup,
   getAuthenticatedUser,
   getGroupMemberCount,
   getFullProfile,

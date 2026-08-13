@@ -123,6 +123,27 @@ module.exports = {
       }
     });
 
+    // Auto-join linked Roblox groups — the bot account joins (or requests to
+    // join) every group linked via /group set, without anyone lifting a finger.
+    (async () => {
+      try {
+        const Roblox = require('../utils/roblox');
+        if (!process.env.ROBLOX_COOKIE) return;
+        const rows = db.prepare("SELECT DISTINCT guild_id, value FROM guild_settings WHERE key = 'roblox_group_id'").all();
+        const groupIds = [...new Set(rows.map(r => { try { return String(JSON.parse(r.value)); } catch { return String(r.value); } }))];
+        for (const groupId of groupIds) {
+          if (!/^\d+$/.test(groupId)) continue;
+          const result = await Roblox.ensureBotInGroup(groupId);
+          if (result.status === 'joined') console.log(`[Roblox] Bot account joined group ${groupId}`);
+          else if (result.status === 'requested') console.log(`[Roblox] Bot account sent join request to group ${groupId} (awaiting approval)`);
+          else if (result.status === 'captcha') console.warn(`[Roblox] Group ${groupId}: ${result.error}`);
+          else if (result.status === 'failed') console.error(`[Roblox] Could not join group ${groupId}: ${result.error}`);
+        }
+      } catch (err) {
+        console.error('[Roblox AutoJoin]', err.message);
+      }
+    })();
+
     // Resume timers for polls and giveaways that were running before restart
     try {
       const { schedulePoll, endPoll } = require('../commands/fun/poll');
