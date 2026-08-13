@@ -13,6 +13,10 @@ const play = require('play-dl');
 
 const queues = new Map();
 
+// Internal gain multiplier — opusscript encodes quietly, so we scale up.
+// User-facing 1–100 maps to 0.03–3.0 gain. 100 = 3.0x = loud & clear.
+const VOLUME_SCALE = 3.0;
+
 // ── Search / Metadata (play-dl is fine for this) ───────────────────────────
 
 async function searchSongs(query, limit = 5) {
@@ -198,7 +202,7 @@ async function playNext(queue) {
       inputType: StreamType.Raw,
       inlineVolume: true,
     });
-    resource.volume?.setVolume(queue.volume / 100);
+    resource.volume?.setVolume((queue.volume / 100) * VOLUME_SCALE);
     queue.resource = resource;
     queue.player.play(resource);
   } catch (error) {
@@ -223,6 +227,11 @@ function enqueue(queue, song) {
   queue.songs.push(song);
   if (!queue.current && !queue.loading) return playNext(queue);
   return null;
+}
+
+function setLoop(queue, mode) {
+  // mode: 'off' | 'song' | 'queue'
+  queue.loop = mode;
 }
 
 function skip(queue) {
@@ -267,10 +276,12 @@ module.exports = {
   resolveSong,
   searchSongs,
   enqueue,
+  setLoop,
   waitUntilReady,
   skip,
   stop,
   destroyQueue,
   inVoiceChannel,
+  VOLUME_SCALE,
   queues,
 };

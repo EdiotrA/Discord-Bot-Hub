@@ -358,6 +358,17 @@ db.exec(`
     user_id TEXT NOT NULL,
     PRIMARY KEY (message_id, user_id)
   );
+
+  -- User playlists: keyed by user_id only so they are accessible across ALL servers
+  CREATE TABLE IF NOT EXISTS user_playlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL COLLATE NOCASE,
+    songs TEXT DEFAULT '[]',
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(user_id, name)
+  );
 `);
 
 // These columns were added after the original ticket schema. SQLite has no
