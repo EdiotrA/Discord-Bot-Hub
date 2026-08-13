@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const Embed = require('../../utils/embed');
 const { db } = require('../../database');
 const config = require('../../config');
 
@@ -19,8 +20,12 @@ module.exports = {
     if (action) { query += ' AND action = ?'; params.push(action); }
     query += ' ORDER BY created_at DESC LIMIT ?'; params.push(limit);
     const logs = db.prepare(query).all(...params);
-    const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('📋 Moderation Logs')
-      .setDescription(logs.length ? logs.map(l => `**${l.action}** • <t:${l.created_at}:R>\n→ <@${l.target_id}> by <@${l.moderator_id}>\n**Reason:** ${l.reason || 'N/A'}`).join('\n\n') : 'No logs found.').setTimestamp();
+    const embed = new EmbedBuilder().setColor(config.colors.moderation).setTitle('📋  Moderation Logs')
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+      .setDescription(logs.length
+        ? logs.map(l => `> 🔨 **${l.action}** • <t:${l.created_at}:R>\n> <@${l.target_id}> by <@${l.moderator_id}>\n> **Reason:** ${l.reason || '`N/A`'}`).join(`\n${Embed.divider}\n`)
+        : '*No logs found.*')
+      .setFooter(Embed.brandFooter('Moderation Logs')).setTimestamp();
     await interaction.editReply({ embeds: [embed] });
   },
 };

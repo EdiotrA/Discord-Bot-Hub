@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const Embed = require('../../utils/embed');
 const Roblox = require('../../utils/roblox');
 const config = require('../../config');
 
@@ -9,14 +10,18 @@ module.exports = {
     await interaction.deferReply();
     const groupId = interaction.options.getString('groupid');
     const group = await Roblox.getGroupInfo(groupId);
-    const embed = new EmbedBuilder().setColor(0xFF0000).setTitle(`🟥 ${group?.name || 'Roblox Group'}`)
-      .setDescription(group?.description?.slice(0, 500) || 'No description.')
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.roblox)
+      .setTitle(`${config.emojis.roblox}  ${group?.name || 'Roblox Group'}`)
+      .setDescription(group?.description?.slice(0, 500) || '*No description.*')
       .addFields(
-        { name: 'Group ID', value: groupId, inline: true },
-        { name: 'Members', value: group ? String(group.memberCount) : 'Unknown', inline: true },
-        { name: 'Owner', value: group?.owner?.username || 'Unknown', inline: true },
-        { name: '⚠️ Note', value: 'The Roblox API does not allow bots to automatically join groups. Click the button below to join manually.' },
-      ).setTimestamp().setFooter({ text: 'Roblox Open Cloud API • Manual join required' });
+        Embed.field('🆔 Group ID', `\`${groupId}\``, true),
+        Embed.field('👥 Members', group ? Number(group.memberCount).toLocaleString() : 'Unknown', true),
+        Embed.field('👑 Owner', group?.owner?.username || 'Unknown', true),
+        Embed.field('⚠️ Note', 'The Roblox API does not allow bots to automatically join groups. Click the button below to join manually.', false),
+      )
+      .setFooter(Embed.brandFooter('Roblox Integration • Manual join required'))
+      .setTimestamp();
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setLabel('Join Group on Roblox').setStyle(ButtonStyle.Link).setURL(`https://www.roblox.com/groups/${groupId}`).setEmoji('🟥'),
     );

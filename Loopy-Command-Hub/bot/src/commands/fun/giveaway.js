@@ -10,23 +10,24 @@ function entryCount(messageId) {
 function buildGiveawayEmbed(giveaway, { final = false } = {}) {
   const entries = entryCount(giveaway.message_id);
   const embed = new EmbedBuilder()
-    .setColor(final ? config.colors.gold : 0xE91E63)
-    .setTitle(`🎉 ${giveaway.prize}`)
+    .setColor(final ? config.colors.gold : config.colors.primary)
+    .setTitle(`🎉  ${giveaway.prize}`)
+    .setFooter(Embed.brandFooter('Giveaways'))
     .setTimestamp();
   const lines = [];
   if (giveaway.description) lines.push(giveaway.description, '');
   if (final) {
     const winners = JSON.parse(giveaway.winner_ids || '[]');
-    lines.push(winners.length ? `**Winner${winners.length === 1 ? '' : 's'}:** ${winners.map(id => `<@${id}>`).join(', ')}` : '**No valid entries — no winner could be drawn.**');
-    lines.push('', `Hosted by <@${giveaway.host_id}> • ${entries} entr${entries === 1 ? 'y' : 'ies'}`);
-    embed.setFooter({ text: 'Giveaway ended' });
+    lines.push(Embed.divider);
+    lines.push(winners.length ? `> 🏆 **Winner${winners.length === 1 ? '' : 's'}:** ${winners.map(id => `<@${id}>`).join(', ')}` : '> **No valid entries — no winner could be drawn.**');
+    lines.push(Embed.divider);
+    lines.push('', `> **Hosted by:** <@${giveaway.host_id}>\n> **Entries:** \`${entries}\``);
   } else {
-    lines.push(`**Ends:** <t:${giveaway.ends_at}:R> (<t:${giveaway.ends_at}:f>)`);
-    lines.push(`**Winners:** ${giveaway.winner_count}`);
-    lines.push(`**Hosted by:** <@${giveaway.host_id}>`);
-    if (giveaway.required_role_id) lines.push(`**Requirement:** <@&${giveaway.required_role_id}>`);
-    lines.push('', `**${entries}** ${entries === 1 ? 'person has' : 'people have'} entered`);
-    embed.setFooter({ text: 'Click the button below to enter' });
+    lines.push(`> ⏰ **Ends:** <t:${giveaway.ends_at}:R> (<t:${giveaway.ends_at}:f>)`);
+    lines.push(`> 🏆 **Winners:** \`${giveaway.winner_count}\``);
+    lines.push(`> 👤 **Hosted by:** <@${giveaway.host_id}>`);
+    if (giveaway.required_role_id) lines.push(`> 🔑 **Requirement:** <@&${giveaway.required_role_id}>`);
+    lines.push('', `> **${entries}** ${entries === 1 ? 'person has' : 'people have'} entered — click below to join!`);
   }
   embed.setDescription(lines.join('\n'));
   return embed;
@@ -180,7 +181,7 @@ module.exports = {
     if (sub === 'list') {
       const rows = db.prepare('SELECT * FROM giveaways WHERE guild_id = ? AND ended = 0 ORDER BY ends_at ASC').all(interaction.guildId);
       if (!rows.length) return interaction.reply({ embeds: [Embed.info('Active Giveaways', 'No active giveaways. Start one with `/giveaway start`.')], ephemeral: true });
-      const lines = rows.map(g => `🎉 **${g.prize}** — ends <t:${g.ends_at}:R> • ${entryCount(g.message_id)} entries • [Jump](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})`);
+      const lines = rows.map(g => `🎉 **${g.prize}**\n> Ends <t:${g.ends_at}:R> • \`${entryCount(g.message_id)}\` entries • [Jump](https://discord.com/channels/${g.guild_id}/${g.channel_id}/${g.message_id})`);
       return interaction.reply({ embeds: [Embed.info('Active Giveaways', lines.join('\n'))], ephemeral: true });
     }
   },

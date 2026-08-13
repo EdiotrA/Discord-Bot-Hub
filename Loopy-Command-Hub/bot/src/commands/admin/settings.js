@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const { db, getSetting } = require('../../database');
+const Embed = require('../../utils/embed');
 const config = require('../../config');
 
 module.exports = {
@@ -14,14 +15,20 @@ module.exports = {
     const ch = (k) => { const v = getSetting(gid, k); return v ? `<#${v}>` : '*(not set)*'; };
     const rl = (k) => { const v = getSetting(gid, k); return v ? `<@&${v}>` : '*(not set)*'; };
     const bool = (k) => getSetting(gid, k) !== false && getSetting(gid, k) !== 'false' ? '🟢 Enabled' : '🔴 Disabled';
-    const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('⚙️ Loopy Bot Settings')
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.primary)
+      .setTitle('⚙️  Loopy Bot Settings')
+      .setDescription(`Configuration overview for **${interaction.guild.name}**.`)
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
       .addFields(
-        { name: '📋 Channels', value: `Log: ${ch('log_channel')}\nWelcome: ${ch('welcome_channel')}\nLevel Up: ${ch('levelup_channel')}\nRank Log: ${ch('rank_log_channel')}\nLOA: ${ch('loa_channel')}`, inline: true },
-        { name: '🎭 Roles', value: `Mute: ${rl('mute_role')}\nAuto: ${rl('auto_role')}\nVerified: ${rl('verified_role')}`, inline: true },
-        { name: '🛡️ Protection', value: `Anti-Scam: ${bool('antiscam_enabled')}\nAnti-Link: ${bool('antilink_enabled')}\nPing Protection: ${bool('ping_protection_enabled')}\nRules Enforcement: ${bool('rules_enforcement_enabled')}`, inline: false },
-        { name: '🎮 Systems', value: `EXP System: ${bool('exp_enabled')}\nRoblox Group: ${getSetting(gid, 'roblox_group_id') || '*(not set)*'}`, inline: true },
-        { name: '🎫 Tickets', value: (() => { const cats = db.prepare('SELECT COUNT(*) as c FROM ticket_categories WHERE guild_id = ?').get(gid); return `Categories: ${cats?.c || 0}`; })(), inline: true },
-      ).setTimestamp().setFooter({ text: 'Use /setup to change settings' });
+        { name: '📋 Channels', value: `> **Log:** ${ch('log_channel')}\n> **Welcome:** ${ch('welcome_channel')}\n> **Level Up:** ${ch('levelup_channel')}\n> **Rank Log:** ${ch('rank_log_channel')}\n> **LOA:** ${ch('loa_channel')}`, inline: true },
+        { name: '🎭 Roles', value: `> **Mute:** ${rl('mute_role')}\n> **Auto:** ${rl('auto_role')}\n> **Verified:** ${rl('verified_role')}`, inline: true },
+        { name: '🛡️ Protection', value: `> **Anti-Scam:** ${bool('antiscam_enabled')}\n> **Anti-Link:** ${bool('antilink_enabled')}\n> **Ping Protection:** ${bool('ping_protection_enabled')}\n> **Rules Enforcement:** ${bool('rules_enforcement_enabled')}`, inline: false },
+        { name: '🎮 Systems', value: `> **EXP System:** ${bool('exp_enabled')}\n> **Roblox Group:** ${getSetting(gid, 'roblox_group_id') ? `\`${getSetting(gid, 'roblox_group_id')}\`` : '*(not set)*'}`, inline: true },
+        { name: '🎫 Tickets', value: (() => { const cats = db.prepare('SELECT COUNT(*) as c FROM ticket_categories WHERE guild_id = ?').get(gid); return `> **Categories:** \`${cats?.c || 0}\``; })(), inline: true },
+      )
+      .setTimestamp()
+      .setFooter(Embed.brandFooter('Use /setup to change settings'));
     await interaction.editReply({ embeds: [embed] });
   },
 };

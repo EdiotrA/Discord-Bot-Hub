@@ -1,13 +1,18 @@
 const config = {
   colors: {
-    primary: 0x5865F2,
-    success: 0x57F287,
-    error: 0xED4245,
-    warning: 0xFEE75C,
-    info: 0x5865F2,
-    purple: 0x9B59B6,
-    gold: 0xF1C40F,
-    dark: 0x2F3136,
+    primary: 0x6366F1,    // indigo — Loopy brand
+    success: 0x22C55E,    // vibrant green
+    error: 0xEF4444,      // clean red
+    warning: 0xF59E0B,    // amber
+    info: 0x38BDF8,       // sky blue
+    purple: 0xA855F7,     // vivid purple
+    gold: 0xFACC15,       // rich gold
+    dark: 0x1E1F22,       // discord dark
+    music: 0x8B5CF6,      // violet
+    roblox: 0xE2231A,     // roblox signature red
+    ticket: 0x6366F1,     // matches brand
+    moderation: 0xDC2626, // crimson
+    game: 0xA855F7,       // vivid purple
   },
   emojis: {
     success: '✅',

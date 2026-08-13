@@ -1,5 +1,6 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const config = require('../../config');
+const Embed = require('../../utils/embed');
 const gameList = [
   { name: '🎱 /8ball', desc: 'Ask the magic 8-ball a question' },
   { name: '🪨 /rps', desc: 'Rock Paper Scissors against the bot' },
@@ -22,8 +23,14 @@ const gameList = [
 module.exports = {
   data: new SlashCommandBuilder().setName('games').setDescription('List all available games and fun commands'),
   async execute(interaction) {
-    const embed = new EmbedBuilder().setColor(config.colors.purple).setTitle('🎮 Loopy Games & Fun')
-      .setDescription(gameList.map(g => `**${g.name}** — ${g.desc}`).join('\n')).setTimestamp().setFooter({ text: 'Use any command to start playing!' });
+    const embed = Embed.base({
+      color: config.colors.game,
+      emoji: config.emojis.game,
+      title: 'Loopy Games & Fun',
+      description: `${Embed.divider}\n${gameList.map(g => `${g.name} — ${g.desc}`).join('\n')}\n${Embed.divider}`,
+      thumbnail: interaction.guild?.iconURL({ dynamic: true }) || undefined,
+      footer: 'Use any command to start playing!',
+    });
     await interaction.reply({ embeds: [embed] });
   },
   handleGameButton: async (interaction) => { await interaction.reply({ content: 'Game action handled!', ephemeral: true }); },

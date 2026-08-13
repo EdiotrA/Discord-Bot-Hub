@@ -1,6 +1,8 @@
+const { EmbedBuilder } = require('discord.js');
 const { getSetting } = require('../database');
 const { setSetting } = require('../database');
 const Embed = require('../utils/embed');
+const config = require('../config');
 const joinBursts = new Map();
 
 module.exports = {
@@ -44,17 +46,17 @@ module.exports = {
           .replace('{server}', member.guild.name)
           .replace('{membercount}', member.guild.memberCount);
 
-        const embed = new (require('discord.js').EmbedBuilder)()
-          .setColor(0x5865F2)
-          .setTitle(`👋 Welcome to ${member.guild.name}!`)
-          .setDescription(msg)
+        const embed = new EmbedBuilder()
+          .setColor(config.colors.primary)
+          .setTitle(`👋  Welcome to ${member.guild.name}!`)
+          .setDescription(`${Embed.divider}\n${msg}\n${Embed.divider}`)
           .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
           .addFields(
-            { name: 'Member', value: member.user.tag, inline: true },
-            { name: 'Member Count', value: `#${member.guild.memberCount}`, inline: true },
-            { name: 'Account Created', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true }
+            Embed.field('Member', member.user.tag, true),
+            Embed.field('Member Count', `\`#${member.guild.memberCount}\``, true),
+            Embed.field('Account Created', `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, true)
           )
-          .setFooter({ text: `ID: ${member.id}` })
+          .setFooter(Embed.brandFooter(`ID: ${member.id}`))
           .setTimestamp();
 
         channel.send({ content: `<@${member.id}>`, embeds: [embed] }).catch(() => {});
@@ -73,7 +75,7 @@ module.exports = {
     if (logChannel) {
       const channel = member.guild.channels.cache.get(logChannel);
       if (channel) {
-        channel.send({ embeds: [Embed.info('Member Joined', `<@${member.id}> (${member.user.tag}) has joined the server.\n\n**Account Age:** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>\n**User ID:** ${member.id}`)] }).catch(() => {});
+        channel.send({ embeds: [Embed.info('Member Joined', `<@${member.id}> (${member.user.tag}) has joined the server.\n\n> **Account Age:** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>\n> **User ID:** \`${member.id}\``)] }).catch(() => {});
       }
     }
   },

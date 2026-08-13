@@ -7,6 +7,7 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const Embed = require('../../utils/embed');
+const config = require('../../config');
 const Roblox = require('../../utils/roblox');
 const { getSetting, setSetting, deleteSetting } = require('../../database');
 const { encrypt, decrypt } = require('../../utils/crypto');
@@ -19,17 +20,17 @@ function resolveGroupId(interaction) {
 
 function groupEmbed(group, thumbnail, extraFields = []) {
   const embed = new EmbedBuilder()
-    .setColor(0xFF3333)
-    .setTitle(`🟥  ${group.name}`)
+    .setColor(config.colors.roblox)
+    .setTitle(`${config.emojis.roblox}  ${group.name}`)
     .setDescription(group.description?.slice(0, 500) || '*No description.*')
     .setThumbnail(thumbnail || null)
     .addFields(
-      { name: '👑 Owner', value: group.owner?.username || 'None', inline: true },
-      { name: '👥 Members', value: Number(group.memberCount).toLocaleString(), inline: true },
-      { name: '🆔 Group ID', value: String(group.id), inline: true },
+      Embed.field('👑 Owner', group.owner?.username || 'None', true),
+      Embed.field('👥 Members', Number(group.memberCount).toLocaleString(), true),
+      Embed.field('🆔 Group ID', `\`${group.id}\``, true),
       ...extraFields,
     )
-    .setFooter({ text: 'Roblox Group • Loopy Bot' })
+    .setFooter(Embed.brandFooter('Roblox Integration'))
     .setTimestamp();
   return embed;
 }
@@ -156,14 +157,17 @@ module.exports = {
       }
 
       setSetting(interaction.guildId, 'roblox_api_key', encrypt(key));
-      const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle('✅  API Key Saved & Verified')
-        .setDescription(
+      const embed = Embed.base({
+        color: config.colors.success,
+        emoji: config.emojis.success,
+        title: 'API Key Saved & Verified',
+        description:
+          `${Embed.divider}\n` +
           `Ranking is now fully automatic for **${test.groupName || `group ${groupId}`}** — no bot join, no captcha, ever.\n\n` +
-          '🔒 Your key is stored **encrypted**. Accept rank requests with `/acceptrank` and the bot ranks people instantly.'
-        )
-        .setTimestamp();
+          '> 🔒 Your key is stored **encrypted**. Accept rank requests with `/acceptrank` and the bot ranks people instantly.\n' +
+          `${Embed.divider}`,
+        footer: 'Roblox Integration',
+      });
       return interaction.editReply({ embeds: [embed] });
     }
 
@@ -303,9 +307,9 @@ module.exports = {
       if (current) chunks.push(current);
 
       const embed = new EmbedBuilder()
-        .setColor(0xFF3333)
-        .setTitle(`🟥  ${group?.name || 'Group'} — Roles (${roles.length})`)
-        .setFooter({ text: `Group ID: ${groupId}` })
+        .setColor(config.colors.roblox)
+        .setTitle(`${config.emojis.roblox}  ${group?.name || 'Group'} — Roles (${roles.length})`)
+        .setFooter(Embed.brandFooter(`Roblox Integration • Group ID: ${groupId}`))
         .setTimestamp();
 
       chunks.slice(0, 5).forEach((chunk, i) =>
@@ -329,19 +333,19 @@ module.exports = {
       ]);
 
       const embed = new EmbedBuilder()
-        .setColor(0xFF3333)
-        .setTitle(`🟥  Join ${group?.name || 'the Group'}`)
+        .setColor(config.colors.roblox)
+        .setTitle(`${config.emojis.roblox}  Join ${group?.name || 'the Group'}`)
         .setDescription(
           group?.publicEntryAllowed === false
-            ? '⚠️ This group requires an **invitation** or **manual approval** to join.\nClick the button below and request to join on Roblox.'
-            : '✅ This group is **open** — click the button below to join on Roblox!'
+            ? '> ⚠️ This group requires an **invitation** or **manual approval** to join.\n> Click the button below and request to join on Roblox.'
+            : '> ✅ This group is **open** — click the button below to join on Roblox!'
         )
         .setThumbnail(thumbnail || null)
         .addFields(
-          { name: '👥 Members', value: Number(group?.memberCount ?? 0).toLocaleString(), inline: true },
-          { name: '🆔 Group ID', value: String(groupId), inline: true },
+          Embed.field('👥 Members', Number(group?.memberCount ?? 0).toLocaleString(), true),
+          Embed.field('🆔 Group ID', `\`${groupId}\``, true),
         )
-        .setFooter({ text: 'You must be logged in to Roblox to join.' })
+        .setFooter(Embed.brandFooter('Roblox Integration • Login required to join'))
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed], components: [joinRow(groupId)] });
@@ -365,8 +369,8 @@ module.exports = {
       // If cookie not set, show setup instructions
       if (!process.env.ROBLOX_COOKIE) {
         const embed = new EmbedBuilder()
-          .setColor(0xFEE75C)
-          .setTitle('⚠️  Setup Required — ROBLOX_COOKIE')
+          .setColor(config.colors.warning)
+          .setTitle(`${config.emojis.warning}  Setup Required — ROBLOX_COOKIE`)
           .setDescription(
             'To make Loopy\'s Roblox account join groups, you need to provide its session cookie.\n\n' +
             '**Steps to get the cookie:**\n' +
@@ -379,7 +383,7 @@ module.exports = {
             '5. Restart the bot, then run `/group botjoin` again\n\n' +
             '> ⚠️ Keep this secret safe — it gives full access to that Roblox account.'
           )
-          .setFooter({ text: 'Roblox session cookies expire when the account logs out.' })
+          .setFooter(Embed.brandFooter('Roblox Integration • Cookies expire on logout'))
           .setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       }
@@ -393,25 +397,27 @@ module.exports = {
 
       if (result.status === 'member') {
         const embed = new EmbedBuilder()
-          .setColor(0x57F287)
-          .setTitle('✅  Already a Member')
+          .setColor(config.colors.success)
+          .setTitle(`${config.emojis.success}  Already a Member`)
           .setDescription(`Loopy's Roblox account (**${result.botUser?.name || 'bot account'}**) is **already in ${group?.name || `group ${groupId}`}**.`)
           .setThumbnail(thumbnail || null)
+          .setFooter(Embed.brandFooter('Roblox Integration'))
           .setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       }
       if (result.status === 'requested') {
         const embed = new EmbedBuilder()
-          .setColor(0xFEE75C)
+          .setColor(config.colors.warning)
           .setTitle('📨  Join Request Sent')
           .setDescription(`**${group?.name || `Group ${groupId}`}** requires approval.\nLoopy's Roblox account sent a join request — approve it in the group's **Join Requests** page.`)
           .setThumbnail(thumbnail || null)
+          .setFooter(Embed.brandFooter('Roblox Integration'))
           .setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       }
       if (result.status === 'captcha') {
         const embed = new EmbedBuilder()
-          .setColor(0xFEE75C)
+          .setColor(config.colors.warning)
           .setTitle('🧩  Captcha Required (one-time manual join)')
           .setDescription(
             `Roblox requires a captcha to join groups via the API — that can't be automated.\n\n` +
@@ -419,6 +425,7 @@ module.exports = {
             `After that, ranking and everything else works fully automatically.`
           )
           .setThumbnail(thumbnail || null)
+          .setFooter(Embed.brandFooter('Roblox Integration'))
           .setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       }
@@ -427,16 +434,16 @@ module.exports = {
       }
 
       const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle(`✅  Joined ${group?.name || `Group ${groupId}`}`)
-        .setDescription(`Loopy's Roblox account has successfully joined the group!`)
+        .setColor(config.colors.success)
+        .setTitle(`${config.emojis.success}  Joined ${group?.name || `Group ${groupId}`}`)
+        .setDescription(`${Embed.divider}\nLoopy's Roblox account has successfully joined the group!\n${Embed.divider}`)
         .setThumbnail(thumbnail || null)
         .addFields(
-          { name: '🆔 Group ID', value: String(groupId), inline: true },
-          { name: '👥 Members', value: Number(group?.memberCount ?? 0).toLocaleString(), inline: true },
-          { name: '👑 Owner', value: group?.owner?.username || 'Unknown', inline: true },
+          Embed.field('🆔 Group ID', `\`${groupId}\``, true),
+          Embed.field('👥 Members', Number(group?.memberCount ?? 0).toLocaleString(), true),
+          Embed.field('👑 Owner', group?.owner?.username || 'Unknown', true),
         )
-        .setFooter({ text: 'Roblox Group • Loopy Bot' })
+        .setFooter(Embed.brandFooter('Roblox Integration'))
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed], components: [joinRow(groupId)] });

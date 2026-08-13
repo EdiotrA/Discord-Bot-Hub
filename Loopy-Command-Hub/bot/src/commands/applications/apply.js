@@ -23,14 +23,17 @@ module.exports = {
     let dmChannel;
     try {
       dmChannel = await interaction.user.createDM();
-      await dmChannel.send({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(`📋 ${appType.label} Application`).setDescription(`You have **${questions.length}** questions to answer. Type your response for each one.\n\nYou have **2 minutes** per question.`).setFooter({ text: 'Application started' }).setTimestamp()] });
+      await dmChannel.send({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(`📋  ${appType.label} Application`)
+        .setDescription(`${Embed.divider}\nYou have **${questions.length}** question${questions.length !== 1 ? 's' : ''} to answer. Type your response for each one.\n\n> ⏱️ **Time limit:** \`2 minutes\` per question\n${Embed.divider}`)
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+        .setFooter(Embed.brandFooter('Application started')).setTimestamp()] });
     } catch {
       return interaction.editReply({ embeds: [Embed.error('DMs Closed', 'Please enable DMs from server members to complete your application.')] });
     }
     await interaction.editReply({ embeds: [Embed.info('Application Started', 'Check your DMs to answer the application questions!')] });
 
     for (let i = 0; i < questions.length; i++) {
-      await dmChannel.send({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(`Question ${i+1}/${questions.length}`).setDescription(questions[i]).setFooter({ text: 'Type your answer below' })] });
+      await dmChannel.send({ embeds: [new EmbedBuilder().setColor(config.colors.primary).setTitle(`❓  Question ${i+1} / ${questions.length}`).setDescription(`> ${questions[i]}`).setFooter(Embed.brandFooter('Type your answer below'))] });
       try {
         const collected = await dmChannel.awaitMessages({ filter: m => m.author.id === interaction.user.id, max: 1, time: 120000, errors: ['time'] });
         answers.push(collected.first().content);
@@ -41,18 +44,17 @@ module.exports = {
     }
 
     const appId = db.prepare('INSERT INTO applications (guild_id, user_id, type, answers) VALUES (?, ?, ?, ?)').run(gid, interaction.user.id, typeName, JSON.stringify(answers)).lastInsertRowid;
-    await dmChannel.send({ embeds: [Embed.success('Application Submitted!', `Your **${appType.label}** application has been submitted!\n\n**Application ID:** #${appId}\n\nYou will be notified of the decision via DM.`)] });
+    await dmChannel.send({ embeds: [Embed.success('Application Submitted!', `Your **${appType.label}** application has been submitted!\n\n> **Application ID:** \`#${appId}\`\n\nYou will be notified of the decision via DM.`)] });
 
     const resultCh = interaction.guild.channels.cache.get(appType.result_channel_id);
     if (resultCh) {
       const reviewEmbed = new EmbedBuilder().setColor(config.colors.primary)
-        .setTitle(`📋 New Application — ${appType.label}`)
+        .setTitle(`📋  New Application — ${appType.label}`)
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setDescription(`> **Applicant:** ${interaction.user.tag} (<@${interaction.user.id}>)\n> **Application ID:** \`#${appId}\``)
         .addFields(
-          { name: '👤 Applicant', value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
-          { name: '🆔 Application ID', value: `#${appId}`, inline: true },
-          ...questions.map((q, i) => ({ name: `Q${i+1}: ${q.slice(0,100)}`, value: answers[i]?.slice(0, 1000) || 'No answer' }))
-        ).setTimestamp().setFooter({ text: `Application #${appId}` });
+          ...questions.map((q, i) => Embed.field(`Q${i+1}: ${q.slice(0,100)}`, answers[i]?.slice(0, 1000) || '*No answer*', false))
+        ).setTimestamp().setFooter(Embed.brandFooter(`Application #${appId}`));
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`app_accept:${appId}`).setLabel('Accept').setStyle(ButtonStyle.Success).setEmoji('✅'),
         new ButtonBuilder().setCustomId(`app_deny:${appId}`).setLabel('Deny').setStyle(ButtonStyle.Danger).setEmoji('❌'),

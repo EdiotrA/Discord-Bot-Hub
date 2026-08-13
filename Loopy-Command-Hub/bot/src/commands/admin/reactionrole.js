@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
+const config = require('../../config');
 const { db } = require('../../database');
 
 module.exports = {
@@ -34,7 +35,8 @@ module.exports = {
         const msg = await ch.messages.fetch(msgId);
         await msg.react(emoji);
         db.prepare('INSERT OR REPLACE INTO reaction_roles (guild_id, channel_id, message_id, emoji, role_id) VALUES (?, ?, ?, ?, ?)').run(gid, ch.id, msgId, emoji, role.id);
-        return interaction.editReply({ embeds: [Embed.success('Reaction Role Added', `Reacting with ${emoji} on [that message](${msg.url}) will give ${role}.`)] });
+        return interaction.editReply({ embeds: [Embed.success('Reaction Role Added',
+          `> **Emoji:** ${emoji}\n> **Role:** ${role}\n> **Message:** [Jump to message](${msg.url})\n\nReacting with ${emoji} will now grant ${role}.`)] });
       } catch (err) {
         return interaction.editReply({ embeds: [Embed.error('Error', `Could not add reaction role: ${err.message}`)] });
       }
@@ -47,17 +49,24 @@ module.exports = {
     }
     if (sub === 'list') {
       const rows = db.prepare('SELECT * FROM reaction_roles WHERE guild_id = ?').all(gid);
-      if (!rows.length) return interaction.editReply({ embeds: [Embed.info('Reaction Roles', 'No reaction roles set up.')] });
-      const desc = rows.map(r => `${r.emoji} → <@&${r.role_id}> (Message: \`${r.message_id}\`)`).join('\n');
+      if (!rows.length) return interaction.editReply({ embeds: [Embed.info('Reaction Roles', 'No reaction roles set up yet.\nUse `/reactionrole add` to create one.')] });
+      const desc = rows.map(r => `> ${r.emoji} → <@&${r.role_id}> · Message \`${r.message_id}\``).join('\n');
       return interaction.editReply({ embeds: [Embed.info('Reaction Roles', desc)] });
     }
     if (sub === 'panel') {
       const ch = interaction.options.getChannel('channel');
       const title = interaction.options.getString('title');
       const desc = interaction.options.getString('description') || 'React to a message below to receive a role!';
-      const embed = new EmbedBuilder().setColor(0x5865F2).setTitle(title).setDescription(desc).setFooter({ text: 'React with the emoji below to get/remove a role' }).setTimestamp();
+      const embed = new EmbedBuilder()
+        .setColor(config.colors.primary)
+        .setTitle(title)
+        .setDescription(desc)
+        .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+        .setFooter(Embed.brandFooter('React below to get or remove a role'))
+        .setTimestamp();
       const msg = await ch.send({ embeds: [embed] });
-      return interaction.editReply({ embeds: [Embed.success('Panel Created', `Panel posted in ${ch}!\n**Message ID:** \`${msg.id}\`\n\nUse \`/reactionrole add\` with that message ID to add reaction roles to it.`)] });
+      return interaction.editReply({ embeds: [Embed.success('Panel Created',
+        `> **Channel:** ${ch}\n> **Message ID:** \`${msg.id}\`\n\nUse \`/reactionrole add\` with that message ID to attach reaction roles.`)] });
     }
   },
 };

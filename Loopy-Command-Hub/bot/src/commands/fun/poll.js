@@ -1,14 +1,13 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../../config');
+const Embed = require('../../utils/embed');
 const { db } = require('../../database');
 
 const NUMS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 const BAR_LENGTH = 12;
 
 function renderBar(count, total) {
-  const ratio = total > 0 ? count / total : 0;
-  const filled = Math.round(ratio * BAR_LENGTH);
-  return '█'.repeat(filled) + '░'.repeat(BAR_LENGTH - filled);
+  return Embed.bar(count, total > 0 ? total : 1, BAR_LENGTH);
 }
 
 function tally(messageId, optionCount) {
@@ -28,17 +27,19 @@ function buildPollEmbed(poll, { final = false } = {}) {
   });
   const embed = new EmbedBuilder()
     .setColor(final ? config.colors.gold : config.colors.primary)
-    .setTitle(`📊 ${poll.question}`)
+    .setTitle(`📊  ${poll.question}`)
     .setDescription(lines.join('\n\n'))
+    .setFooter(Embed.brandFooter('Polls'))
     .setTimestamp();
   if (final) {
     const max = Math.max(...counts);
     const winners = total > 0 ? options.filter((_, i) => counts[i] === max) : [];
-    embed.addFields({ name: '🏆 Result', value: winners.length ? winners.map(w => `**${w}**`).join(' tied with ') : 'No votes were cast.' });
-    embed.setFooter({ text: `Poll ended • ${total} total vote${total === 1 ? '' : 's'}` });
+    embed.addFields(
+      Embed.field('🏆 Result', winners.length ? winners.map(w => `**${w}**`).join(' tied with ') : 'No votes were cast.', false),
+      Embed.field('🗳️ Total Votes', `\`${total}\``, true),
+    );
   } else {
-    embed.setFooter({ text: `Vote with the buttons below • Ends` });
-    embed.addFields({ name: '\u200b', value: `Ends <t:${poll.ends_at}:R> • Hosted by <@${poll.author_id}>` });
+    embed.addFields({ name: '\u200b', value: `> ⏰ **Ends** <t:${poll.ends_at}:R>\n> 👤 **Hosted by** <@${poll.author_id}>\n> 🗳️ Vote with the buttons below!` });
   }
   return embed;
 }

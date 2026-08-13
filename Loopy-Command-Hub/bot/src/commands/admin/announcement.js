@@ -1,7 +1,14 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
+const config = require('../../config');
 
-const colors = { blue: 0x5865F2, green: 0x57F287, red: 0xED4245, yellow: 0xFEE75C, purple: 0x9B59B6 };
+const colors = {
+  blue: config.colors.primary,
+  green: config.colors.success,
+  red: config.colors.error,
+  yellow: config.colors.gold,
+  purple: config.colors.purple,
+};
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -23,9 +30,14 @@ module.exports = {
     const message = interaction.options.getString('message');
     const color = colors[interaction.options.getString('color') || 'blue'];
     const ping = interaction.options.getBoolean('pingeveryone');
-    const embed = new EmbedBuilder().setColor(color).setTitle(`📢 ${title}`).setDescription(message)
-      .setFooter({ text: `Announced by ${interaction.user.tag}` }).setTimestamp();
+    const embed = new EmbedBuilder()
+      .setColor(color)
+      .setTitle(`📢  ${title}`)
+      .setDescription(message)
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+      .setFooter(Embed.brandFooter(`Announced by ${interaction.user.tag}`))
+      .setTimestamp();
     await ch.send({ content: ping ? '@everyone' : null, embeds: [embed] });
-    await interaction.editReply({ embeds: [Embed.success('Announced', `Announcement sent to ${ch}!`)] });
+    await interaction.editReply({ embeds: [Embed.success('Announcement Sent', `Your announcement has been posted in ${ch}.`)] });
   },
 };

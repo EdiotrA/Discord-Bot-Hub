@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const Embed = require('../../utils/embed');
 const config = require('../../config');
 
 const categories = {
@@ -243,11 +244,7 @@ module.exports = {
       const cmd = interaction.client.commands.get(commandName.toLowerCase());
       if (!cmd) {
         return interaction.reply({
-          embeds: [new EmbedBuilder()
-            .setColor(config.colors.error)
-            .setTitle('❌ Command Not Found')
-            .setDescription(`No command named \`/${commandName}\` was found.\nUse \`/help\` to see all available commands.`)
-            .setTimestamp()],
+          embeds: [Embed.error('Command Not Found', `No command named \`/${commandName}\` was found.\nUse \`/help\` to see all available commands.`)],
           ephemeral: true,
         });
       }
@@ -255,16 +252,16 @@ module.exports = {
       const data = cmd.data;
       const embed = new EmbedBuilder()
         .setColor(config.colors.primary)
-        .setTitle(`📖 Command: /${data.name}`)
-        .setDescription(data.description || 'No description provided.')
-        .setFooter({ text: 'Use /help [category] to browse commands by category' })
+        .setTitle(`📖  /${data.name}`)
+        .setDescription(`> ${data.description || 'No description provided.'}`)
+        .setFooter(Embed.brandFooter('Use /help [category] to browse by category'))
         .setTimestamp();
 
       // Show options/args
       if (data.options && data.options.length > 0) {
         const args = data.options.map(o => {
           const req = o.required ? '*(required)*' : '*(optional)*';
-          return `\`${o.name}\` ${req} — ${o.description}`;
+          return `> \`${o.name}\` ${req} — ${o.description}`;
         }).join('\n');
         embed.addFields({ name: '📝 Arguments', value: args });
       }
@@ -276,14 +273,14 @@ module.exports = {
     if (categoryName) {
       const cat = categories[categoryName];
       if (!cat) {
-        return interaction.reply({ embeds: [new EmbedBuilder().setColor(config.colors.error).setTitle('❌ Category Not Found').setDescription(`Unknown category: \`${categoryName}\``).setTimestamp()], ephemeral: true });
+        return interaction.reply({ embeds: [Embed.error('Category Not Found', `Unknown category: \`${categoryName}\``)], ephemeral: true });
       }
 
       const embed = new EmbedBuilder()
         .setColor(config.colors.primary)
-        .setTitle(`${cat.emoji} ${categoryName} Commands`)
-        .setDescription(`${cat.description}\n\n${cat.commands.map(c => `\`/${c.name}\` — ${c.description}`).join('\n')}`)
-        .setFooter({ text: `${cat.commands.length} commands • Use /help [command] for details` })
+        .setTitle(`${cat.emoji}  ${categoryName} Commands`)
+        .setDescription(`*${cat.description}*\n${Embed.divider}\n${cat.commands.map(c => `\`/${c.name}\` — ${c.description}`).join('\n')}`)
+        .setFooter(Embed.brandFooter(`${cat.commands.length} commands • Use /help [command] for details`))
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed] });
@@ -297,19 +294,20 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle('📚 Loopy Bot — Command Help')
+      .setTitle('📚  Loopy Bot — Command Help')
       .setDescription(
         `Welcome to **Loopy**! Here's an overview of all command categories.\n` +
-        `Use \`/help category:[name]\` to see commands in a category.\n` +
-        `Use \`/help command:[name]\` for info on a specific command.\n\n` +
+        `> Use \`/help category:[name]\` to browse a category.\n` +
+        `> Use \`/help command:[name]\` for info on a specific command.\n` +
+        `${Embed.divider}\n` +
         categoryLines.join('\n')
       )
       .addFields(
-        { name: '📊 Statistics', value: `**${totalCommands}+** commands across **${Object.keys(categories).length}** categories`, inline: true },
-        { name: '🔗 Support', value: `[Support Server](${config.supportServer})`, inline: true }
+        { name: '📊 Statistics', value: `> **${totalCommands}+** commands across **${Object.keys(categories).length}** categories`, inline: true },
+        { name: '🔗 Support', value: `> [Support Server](${config.supportServer})`, inline: true }
       )
-      .setFooter({ text: `Loopy v${config.version} • Use /help [category] to explore` })
       .setThumbnail(interaction.client.user.displayAvatarURL({ dynamic: true }))
+      .setFooter(Embed.brandFooter(`v${config.version} • Use /help [category] to explore`))
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

@@ -25,15 +25,14 @@ module.exports = {
     if (loaChannel) {
       const ch = interaction.guild.channels.cache.get(loaChannel);
       if (ch) {
-        const embed = new EmbedBuilder().setColor(config.colors.warning).setTitle('📅 LOA Request')
+        const embed = new EmbedBuilder().setColor(config.colors.warning).setTitle('📅  LOA Request')
           .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+          .setDescription(`> **Member:** ${interaction.user.tag} (<@${interaction.user.id}>)\n> **Request ID:** \`#${id}\``)
           .addFields(
-            { name: '👤 Member', value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
-            { name: '🆔 ID', value: `#${id}`, inline: true },
-            { name: '📋 Reason', value: reason },
-            { name: '📅 Start', value: `<t:${start}:D>`, inline: true },
-            { name: '📅 End', value: `<t:${end}:D>`, inline: true },
-          ).setTimestamp();
+            Embed.field('📋 Reason', reason, false),
+            Embed.field('📅 Start', `<t:${start}:D>`, true),
+            Embed.field('📅 End', `<t:${end}:D>`, true),
+          ).setFooter(Embed.brandFooter('Leave of Absence')).setTimestamp();
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId(`loa_accept:${id}`).setLabel('Accept').setStyle(ButtonStyle.Success).setEmoji('✅'),
           new ButtonBuilder().setCustomId(`loa_deny:${id}`).setLabel('Deny').setStyle(ButtonStyle.Danger).setEmoji('❌'),
@@ -42,7 +41,7 @@ module.exports = {
         await ch.send({ content: reviewerRole ? `<@&${reviewerRole}>` : undefined, embeds: [embed], components: [row] });
       }
     }
-    await interaction.editReply({ embeds: [Embed.success('LOA Submitted', `Your LOA request (#${id}) has been submitted!\n**From:** <t:${start}:D>\n**To:** <t:${end}:D>\n\nYou will be notified of the decision via DM.`)] });
+    await interaction.editReply({ embeds: [Embed.success('LOA Submitted', `Your LOA request (\`#${id}\`) has been submitted!\n\n> **From:** <t:${start}:D>\n> **To:** <t:${end}:D>\n\nYou will be notified of the decision via DM.`)] });
   },
   handleLoaModal,
 };

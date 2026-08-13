@@ -16,13 +16,14 @@ module.exports = {
       return interaction.reply({ embeds: [Embed.info('Level Roles', 'No level role rewards have been configured yet.\nUse `/setlevelrole` to add one.')] });
     }
 
-    const lines = levelRoles.map(lr => `**Level ${lr.level}** → <@&${lr.role_id}>`);
+    const lines = levelRoles.map(lr => `> 🎖️ **Level ${lr.level}** → <@&${lr.role_id}>`);
 
     const embed = new EmbedBuilder()
       .setColor(config.colors.gold)
-      .setTitle('🎖️ Level Role Rewards')
-      .setDescription(lines.join('\n'))
-      .setFooter({ text: `${levelRoles.length} reward(s) configured` })
+      .setTitle('🎖️  Level Role Rewards')
+      .setDescription(`Reach these levels to earn roles in **${interaction.guild.name}**.\n\n${lines.join('\n')}`)
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+      .setFooter(Embed.brandFooter(`${levelRoles.length} reward(s) configured`))
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

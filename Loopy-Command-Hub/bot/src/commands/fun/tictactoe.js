@@ -23,7 +23,9 @@ module.exports = {
     const board = Array(9).fill(null);
     let turn = 'X';
     const players = { X: interaction.user.id, O: opp.user.id };
-    const embed = () => new EmbedBuilder().setColor(config.colors.primary).setTitle('❌ Tic Tac Toe ⭕').setDescription(`${turn === 'X' ? `<@${players.X}>` : `<@${players.O}>`}'s turn (${turn})`).setTimestamp();
+    const embed = () => new EmbedBuilder().setColor(config.colors.game).setTitle('❌  Tic Tac Toe  ⭕')
+      .setDescription(`> ❌ **Player X:** <@${players.X}>\n> ⭕ **Player O:** <@${players.O}>\n\n> 🎯 **Turn:** ${turn === 'X' ? `<@${players.X}>` : `<@${players.O}>`} \`(${turn})\``)
+      .setFooter(Embed.brandFooter('Tic Tac Toe')).setTimestamp();
     const rows = () => board.reduce((acc, _, i) => { const ri = Math.floor(i/3); if (!acc[ri]) acc[ri] = new ActionRowBuilder(); acc[ri].addComponents(new ButtonBuilder().setCustomId(`ttt_${i}`).setLabel(board[i] === 'X' ? '❌' : board[i] === 'O' ? '⭕' : '\u200b').setStyle(board[i] === 'X' ? ButtonStyle.Danger : board[i] === 'O' ? ButtonStyle.Primary : ButtonStyle.Secondary).setDisabled(!!board[i])); return acc; }, []);
     await interaction.reply({ content: `${opp}, you've been challenged to Tic Tac Toe by ${interaction.user}!`, embeds: [embed()], components: rows() });
     const msg = await interaction.fetchReply();
@@ -37,8 +39,10 @@ module.exports = {
       if (winner) {
         collector.stop();
         const disabledRows = rows().map(r => { r.components.forEach(b => b.setDisabled(true)); return r; });
-        const msg2 = winner === 'draw' ? '🤝 It\'s a draw!' : `🎉 <@${players[winner]}> wins!`;
-        return i.update({ embeds: [new EmbedBuilder().setColor(winner === 'draw' ? 0xFEE75C : 0x57F287).setTitle('Game Over!').setDescription(msg2).setTimestamp()], components: disabledRows });
+        const msg2 = winner === 'draw'
+          ? `${Embed.divider}\n> 🤝 **It's a draw!**\n${Embed.divider}`
+          : `${Embed.divider}\n> 🎉 **Winner:** <@${players[winner]}> \`(${winner})\`\n${Embed.divider}`;
+        return i.update({ embeds: [new EmbedBuilder().setColor(winner === 'draw' ? config.colors.warning : config.colors.success).setTitle('🏁  Game Over!').setDescription(msg2).setFooter(Embed.brandFooter('Tic Tac Toe')).setTimestamp()], components: disabledRows });
       }
       turn = turn === 'X' ? 'O' : 'X';
       await i.update({ embeds: [embed()], components: rows() });

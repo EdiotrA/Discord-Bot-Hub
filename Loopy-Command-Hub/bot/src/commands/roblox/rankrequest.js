@@ -40,13 +40,20 @@ async function handleRankModal(interaction) {
   if (logCh) {
     const ch = interaction.guild.channels.cache.get(logCh);
     if (ch) {
-      const embed = new EmbedBuilder().setColor(0xFF0000).setTitle('🟥 Rank Request').addFields(
-        { name: 'Requester', value: `${interaction.user.tag} (<@${interaction.user.id}>)`, inline: true },
-        { name: 'Target', value: `${targetUsername} (ID: ${targetUser.id})`, inline: true },
-        { name: 'Current Rank', value: targetRank?.name || 'Guest', inline: true },
-        { name: 'Requested Rank', value: desiredRole.name, inline: true },
-        { name: 'Reason', value: reason },
-      ).setTimestamp().setFooter({ text: `Request #${id}` });
+      const embed = new EmbedBuilder()
+        .setColor(config.colors.roblox)
+        .setTitle(`${config.emojis.roblox}  Rank Request`)
+        .setDescription(
+          `> **Requester:** ${interaction.user.tag} (<@${interaction.user.id}>)\n` +
+          `> **Target:** ${targetUsername} \`${targetUser.id}\`\n` +
+          `> **Rank Change:** **${targetRank?.name || 'Guest'}** → **${desiredRole.name}**`
+        )
+        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .addFields(
+          Embed.field('📝 Reason', reason, false),
+        )
+        .setFooter(Embed.brandFooter(`Roblox Integration • Request #${id}`))
+        .setTimestamp();
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`rank_accept:${id}`).setLabel('Accept & Rank').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(`rank_deny:${id}`).setLabel('Deny').setStyle(ButtonStyle.Danger),

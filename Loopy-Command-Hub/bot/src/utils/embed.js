@@ -1,170 +1,137 @@
 const { EmbedBuilder } = require('discord.js');
 const config = require('../config');
 
-const timestamp = () => Math.floor(Date.now() / 1000);
-
 /**
- * Success embed (green)
+ * ─────────────────────────────────────────────────────────────
+ *  Loopy Embed Design System
+ *  - Rich, modern color palette (config.colors)
+ *  - Branded author line + consistent footers
+ *  - Formatting helpers: bar(), divider, field()
+ * ─────────────────────────────────────────────────────────────
  */
+
+const FOOTER_ICON = null; // set at runtime via setClient()
+let botAvatarUrl = null;
+let botName = 'Loopy';
+
+/** Call once at startup so embeds can brand themselves with the bot avatar. */
+const setClient = (client) => {
+  try {
+    botAvatarUrl = client.user.displayAvatarURL({ size: 64 });
+    botName = client.user.username || 'Loopy';
+  } catch { /* ignore */ }
+};
+
+/** Standard branded footer. Pass extra text to append after the bullet. */
+const brandFooter = (extra) => ({
+  text: extra ? `${botName} • ${extra}` : botName,
+  iconURL: botAvatarUrl || FOOTER_ICON || undefined,
+});
+
+/** Thin decorative divider for descriptions. */
+const divider = '▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬';
+
+/** Progress / stat bar, e.g. bar(30, 100) → filled block bar. */
+const bar = (value, max = 100, size = 10) => {
+  const filled = Math.round((Math.max(0, Math.min(value, max)) / max) * size);
+  return '█'.repeat(filled) + '░'.repeat(size - filled);
+};
+
+/** Inline field shorthand. */
+const field = (name, value, inline = true) => ({ name, value: String(value), inline });
+
+/** Core builder all helpers share. */
+const base = ({ color, emoji, title, description, fields = [], thumbnail, footer, timestamp = true }) => {
+  const e = new EmbedBuilder().setColor(color);
+  if (title) e.setTitle(emoji ? `${emoji}  ${title}` : title);
+  if (description) e.setDescription(description);
+  if (fields.length) e.addFields(fields);
+  if (thumbnail) e.setThumbnail(thumbnail);
+  e.setFooter(brandFooter(footer));
+  if (timestamp) e.setTimestamp();
+  return e;
+};
+
+/** Success embed (green) */
 const success = (title, description, fields = []) =>
-  new EmbedBuilder()
-    .setColor(config.colors.success)
-    .setTitle(`${config.emojis.success} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+  base({ color: config.colors.success, emoji: config.emojis.success, title, description, fields });
 
-/**
- * Error embed (red)
- */
+/** Error embed (red) — no timestamp noise, short and clear */
 const error = (title, description) =>
-  new EmbedBuilder()
-    .setColor(config.colors.error)
-    .setTitle(`${config.emojis.error} ${title}`)
-    .setDescription(description || null)
-    .setTimestamp();
+  base({ color: config.colors.error, emoji: config.emojis.error, title, description, footer: 'Something went wrong' });
 
-/**
- * Warning embed (yellow)
- */
+/** Warning embed (amber) */
 const warning = (title, description) =>
-  new EmbedBuilder()
-    .setColor(config.colors.warning)
-    .setTitle(`${config.emojis.warning} ${title}`)
-    .setDescription(description || null)
-    .setTimestamp();
+  base({ color: config.colors.warning, emoji: config.emojis.warning, title, description });
 
-/**
- * Info embed (blue/purple)
- */
+/** Info embed (blurple) */
 const info = (title, description, fields = []) =>
-  new EmbedBuilder()
-    .setColor(config.colors.primary)
-    .setTitle(`${config.emojis.info} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+  base({ color: config.colors.info, emoji: config.emojis.info, title, description, fields });
 
-/**
- * Primary embed (branded, no emoji prefix)
- */
+/** Primary branded embed (no emoji prefix) */
 const primary = (title, description, fields = []) =>
-  new EmbedBuilder()
-    .setColor(config.colors.primary)
-    .setTitle(title)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+  base({ color: config.colors.primary, title, description, fields });
 
-/**
- * Ticket embed
- */
+/** Ticket embed */
 const ticket = (title, description, fields = []) =>
-  new EmbedBuilder()
-    .setColor(config.colors.primary)
-    .setTitle(`${config.emojis.ticket} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+  base({ color: config.colors.ticket, emoji: config.emojis.ticket, title, description, fields, footer: 'Ticket System' });
 
-/**
- * Moderation embed (dark red)
- */
+/** Moderation embed (crimson, target avatar) */
 const moderation = (action, target, moderator, reason, extra = []) =>
-  new EmbedBuilder()
-    .setColor(config.colors.error)
-    .setTitle(`🔨 Moderation Action — ${action}`)
-    .addFields(
-      { name: 'Target', value: `<@${target.id}> (${target.tag})`, inline: true },
-      { name: 'Moderator', value: `<@${moderator.id}> (${moderator.tag})`, inline: true },
-      { name: 'Reason', value: reason || 'No reason provided', inline: false },
-      ...extra
-    )
-    .setThumbnail(target.displayAvatarURL({ dynamic: true }))
-    .setFooter({ text: `User ID: ${target.id}` })
-    .setTimestamp();
+  base({
+    color: config.colors.moderation,
+    emoji: '🔨',
+    title: `${action}`,
+    description: `> **Target:** <@${target.id}> \`${target.tag}\`\n> **Moderator:** <@${moderator.id}>\n> **Reason:** ${reason || '*No reason provided*'}`,
+    fields: extra,
+    thumbnail: target.displayAvatarURL({ dynamic: true }),
+    footer: `User ID: ${target.id}`,
+  });
 
-/**
- * Level-up embed
- */
+/** Level-up embed (gold, celebratory) */
 const levelUp = (user, level) =>
-  new EmbedBuilder()
-    .setColor(config.colors.gold)
-    .setTitle(`⭐ Level Up!`)
-    .setDescription(`Congratulations ${user}, you've reached **Level ${level}**!`)
-    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-    .setTimestamp();
+  base({
+    color: config.colors.gold,
+    emoji: '🎉',
+    title: 'Level Up!',
+    description: `${divider}\n**${user.username ?? user}** just hit **Level ${level}**!\n${divider}`,
+    thumbnail: user.displayAvatarURL ? user.displayAvatarURL({ dynamic: true }) : null,
+    footer: 'Keep chatting to earn XP',
+  });
 
-/**
- * Music embed
- */
-const music = (title, description, thumbnail = null, fields = []) => {
-  const embed = new EmbedBuilder()
-    .setColor(config.colors.purple)
-    .setTitle(`${config.emojis.music} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
-  if (thumbnail) embed.setThumbnail(thumbnail);
-  return embed;
-};
+/** Music embed (violet) */
+const music = (title, description, thumbnail = null, fields = []) =>
+  base({ color: config.colors.music, emoji: config.emojis.music, title, description, fields, thumbnail, footer: 'Music Player' });
 
-/**
- * Roblox embed
- */
-const roblox = (title, description, fields = [], thumbnail = null) => {
-  const embed = new EmbedBuilder()
-    .setColor(0xFF0000)
-    .setTitle(`${config.emojis.roblox} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
-  if (thumbnail) embed.setThumbnail(thumbnail);
-  return embed;
-};
+/** Roblox embed (signature red) */
+const roblox = (title, description, fields = [], thumbnail = null) =>
+  base({ color: config.colors.roblox, emoji: config.emojis.roblox, title, description, fields, thumbnail, footer: 'Roblox Integration' });
 
-/**
- * Application embed
- */
+/** Application embed */
 const application = (title, description, fields = [], color = config.colors.primary) =>
-  new EmbedBuilder()
-    .setColor(color)
-    .setTitle(`📋 ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+  base({ color, emoji: '📋', title, description, fields, footer: 'Applications' });
 
-/**
- * Leaderboard embed
- */
+/** Leaderboard embed (gold) */
 const leaderboard = (title, description, entries) =>
-  new EmbedBuilder()
-    .setColor(config.colors.gold)
-    .setTitle(`🏆 ${title}`)
-    .setDescription(description || null)
-    .addFields(entries)
-    .setTimestamp();
+  base({ color: config.colors.gold, emoji: '🏆', title, description, fields: entries });
 
-/**
- * Game embed
- */
-const game = (title, description, fields = [], color = config.colors.purple) =>
-  new EmbedBuilder()
-    .setColor(color)
-    .setTitle(`${config.emojis.game} ${title}`)
-    .setDescription(description || null)
-    .addFields(fields)
-    .setTimestamp();
+/** Game embed */
+const game = (title, description, fields = [], color = config.colors.game) =>
+  base({ color, emoji: config.emojis.game, title, description, fields });
 
-/**
- * Help embed
- */
+/** Help embed */
 const help = (category, commands) =>
-  new EmbedBuilder()
-    .setColor(config.colors.primary)
-    .setTitle(`📚 Loopy Help — ${category}`)
-    .setDescription(commands.map(c => `\`/${c.name}\` — ${c.description}`).join('\n'))
-    .setFooter({ text: 'Use /help [command] for detailed info on a specific command' })
-    .setTimestamp();
+  base({
+    color: config.colors.primary,
+    emoji: '📚',
+    title: `Help — ${category}`,
+    description: commands.map(c => `\`/${c.name}\` — ${c.description}`).join('\n'),
+    footer: 'Use /help [command] for details',
+  });
 
-module.exports = { success, error, warning, info, primary, ticket, moderation, levelUp, music, roblox, application, leaderboard, game, help };
+module.exports = {
+  success, error, warning, info, primary, ticket, moderation, levelUp,
+  music, roblox, application, leaderboard, game, help,
+  // design-system utilities
+  base, setClient, brandFooter, divider, bar, field,
+};

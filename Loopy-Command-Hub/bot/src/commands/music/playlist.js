@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
 const Music = require('../../utils/music');
 const { db } = require('../../database');
+const config = require('../../config');
 
 // ── DB helpers ────────────────────────────────────────────────────────────────
 
@@ -106,10 +107,11 @@ module.exports = {
         `\`${i + 1}.\` **${p.name}** — ${p.songs.length} song${p.songs.length !== 1 ? 's' : ''}`
       );
       const embed = new EmbedBuilder()
-        .setColor(0x9B59B6)
-        .setTitle(`🎵 ${interaction.user.displayName}'s Playlists`)
+        .setColor(config.colors.music)
+        .setTitle(`🎵  ${interaction.user.displayName}'s Playlists`)
+        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setDescription(lines.join('\n'))
-        .setFooter({ text: `${playlists.length} playlist${playlists.length !== 1 ? 's' : ''} • Works in any server` })
+        .setFooter(Embed.brandFooter(`${playlists.length} playlist${playlists.length !== 1 ? 's' : ''} • Works in any server`))
         .setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -120,10 +122,10 @@ module.exports = {
       const pl = getPlaylist(userId, name);
       if (!pl) return interaction.reply({ embeds: [Embed.error('Not Found', `You don't have a playlist called **${name}**.\nUse \`/playlist list\` to see your playlists.`)], ephemeral: true });
       const embed = new EmbedBuilder()
-        .setColor(0x9B59B6)
-        .setTitle(`🎵 ${pl.name}`)
+        .setColor(config.colors.music)
+        .setTitle(`🎵  ${pl.name}`)
         .setDescription(songList(pl.songs))
-        .setFooter({ text: `${pl.songs.length} song${pl.songs.length !== 1 ? 's' : ''} · load with /playlist load ${pl.name}` })
+        .setFooter(Embed.brandFooter(`${pl.songs.length} song${pl.songs.length !== 1 ? 's' : ''} · load with /playlist load ${pl.name}`))
         .setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -138,10 +140,11 @@ module.exports = {
       const songs = [...queue.songs]; // snapshot current queue
       savePlaylist(userId, name, songs);
       const embed = new EmbedBuilder()
-        .setColor(0x57F287)
-        .setTitle('✅ Playlist Saved')
-        .setDescription(`**${name}** saved with **${songs.length}** song${songs.length !== 1 ? 's' : ''}.\nThis playlist is yours across every server Loopy is in.`)
-        .addFields({ name: 'First song', value: songs[0].title.slice(0, 80), inline: true })
+        .setColor(config.colors.success)
+        .setTitle('✅  Playlist Saved')
+        .setDescription(`> **${name}** saved with **${songs.length}** song${songs.length !== 1 ? 's' : ''}.\nThis playlist is yours across every server Loopy is in.`)
+        .addFields(Embed.field('First song', songs[0].title.slice(0, 80), true))
+        .setFooter(Embed.brandFooter('Playlists'))
         .setTimestamp();
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
@@ -172,18 +175,19 @@ module.exports = {
         for (const song of pl.songs) Music.enqueue(queue, song);
 
         const embed = new EmbedBuilder()
-          .setColor(0x9B59B6)
-          .setTitle(`🎵 Loaded — ${pl.name}`)
+          .setColor(config.colors.music)
+          .setTitle(`🎵  Loaded — ${pl.name}`)
           .setDescription(
             mode === 'replace'
               ? `Replaced the queue with **${pl.songs.length}** songs from your playlist.`
               : `Added **${pl.songs.length}** songs from your playlist to the queue.`
           )
           .addFields(
-            { name: 'Songs added', value: String(pl.songs.length), inline: true },
-            { name: 'Queue total', value: String(queue.songs.length), inline: true },
-            { name: '🔁 Tip', value: 'Use `/loop queue` to repeat this playlist forever.', inline: false },
+            Embed.field('Songs added', `\`${pl.songs.length}\``, true),
+            Embed.field('Queue total', `\`${queue.songs.length}\``, true),
+            Embed.field('🔁 Tip', 'Use `/loop queue` to repeat this playlist forever.', false),
           )
+          .setFooter(Embed.brandFooter('Music Player'))
           .setTimestamp();
         return interaction.editReply({ embeds: [embed] });
       } catch (err) {

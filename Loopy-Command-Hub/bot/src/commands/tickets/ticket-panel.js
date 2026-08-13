@@ -25,8 +25,10 @@ module.exports = {
     const desc = interaction.options.getString('description') || 'Need help? Click below to open a ticket and our team will assist you as soon as possible.';
     const gid = interaction.guildId;
     const cats = db.prepare('SELECT * FROM ticket_categories WHERE guild_id = ?').all(gid);
-    const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle(title).setDescription(desc)
-      .setFooter({ text: interaction.guild.name }).setTimestamp();
+    const embed = new EmbedBuilder().setColor(config.colors.ticket).setTitle(title)
+      .setDescription(`${Embed.divider}\n${desc}\n${Embed.divider}`)
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+      .setFooter(Embed.brandFooter(interaction.guild.name)).setTimestamp();
     let components = [];
     if (cats.length === 0) {
       components = [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('ticket_open:general').setLabel('Open Ticket').setStyle(ButtonStyle.Primary).setEmoji('🎫'))];
@@ -71,11 +73,11 @@ async function handleTicketOpen(interaction, categoryName) {
 
   db.prepare('INSERT INTO tickets (guild_id, user_id, channel_id, category, status) VALUES (?, ?, ?, ?, ?)').run(gid, interaction.user.id, channel.id, categoryName, 'open');
 
-  const ticketEmbed = new EmbedBuilder().setColor(config.colors.primary)
-    .setTitle(`${cat?.emoji || '🎫'} ${cat?.label || 'Support Ticket'} #${ticketCount}`)
-    .setDescription(`Hello ${interaction.user}! A support member will be with you shortly.\n\n${cat?.description ? `**Category:** ${cat.description}\n\n` : ''}Please describe your issue in detail.`)
-    .addFields({ name: '📋 Ticket Info', value: `**Opened by:** ${interaction.user.tag}\n**Category:** ${cat?.label || 'General'}\n**Created:** <t:${Math.floor(Date.now()/1000)}:F>` })
-    .setFooter({ text: 'Click "Close Ticket" when your issue is resolved' }).setTimestamp();
+  const ticketEmbed = new EmbedBuilder().setColor(config.colors.ticket)
+    .setTitle(`${cat?.emoji || '🎫'}  ${cat?.label || 'Support Ticket'} #${ticketCount}`)
+    .setDescription(`Hello ${interaction.user}! A support member will be with you shortly.\n\n${cat?.description ? `> **Category:** ${cat.description}\n\n` : ''}Please describe your issue in detail.`)
+    .addFields(Embed.field('📋 Ticket Info', `**Opened by:** ${interaction.user.tag}\n**Category:** ${cat?.label || 'General'}\n**Created:** <t:${Math.floor(Date.now()/1000)}:F>`, false))
+    .setFooter(Embed.brandFooter('Click "Close Ticket" when your issue is resolved')).setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
@@ -84,7 +86,7 @@ async function handleTicketOpen(interaction, categoryName) {
   await channel.send({ content: `${interaction.user} ${supportRoles.map(r => `<@&${r}>`).join(' ')}`, embeds: [ticketEmbed], components: [row] });
 
   const logChId = cat?.log_channel_id || getSetting(gid, 'ticket_log_channel');
-  if (logChId) { const lc = interaction.guild.channels.cache.get(logChId); if (lc) lc.send({ embeds: [Embed.info('Ticket Opened', `**User:** ${interaction.user.tag}\n**Category:** ${cat?.label || 'General'}\n**Channel:** ${channel}`)] }); }
+  if (logChId) { const lc = interaction.guild.channels.cache.get(logChId); if (lc) lc.send({ embeds: [Embed.info('Ticket Opened', `> **User:** ${interaction.user.tag}\n> **Category:** ${cat?.label || 'General'}\n> **Channel:** ${channel}`)] }); }
 
   await interaction.editReply({ embeds: [Embed.success('Ticket Created', `Your ticket has been created! ${channel}`)] });
 }

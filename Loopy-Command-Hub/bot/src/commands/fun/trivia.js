@@ -19,9 +19,13 @@ module.exports = {
       const letters = ['A', 'B', 'C', 'D'];
       const correctIdx = allAnswers.indexOf(correct);
 
-      const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('🎯 Trivia!')
-        .addFields({ name: 'Category', value: decode(q.category), inline: true }, { name: 'Difficulty', value: q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1), inline: true }, { name: 'Question', value: decode(q.question) })
-        .setFooter({ text: '30 seconds to answer!' }).setTimestamp();
+      const embed = new EmbedBuilder().setColor(config.colors.game).setTitle('🎯  Trivia Time!')
+        .addFields(
+          { name: '📚 Category', value: `\`${decode(q.category)}\``, inline: true },
+          { name: '📊 Difficulty', value: `\`${q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}\``, inline: true },
+          { name: '❓ Question', value: `> ${decode(q.question)}`, inline: false },
+        )
+        .setFooter(Embed.brandFooter('Trivia • 30 seconds to answer!')).setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(allAnswers.map((a, i) => new ButtonBuilder().setCustomId(`trivia_ans_${i}_${correctIdx}`).setLabel(`${letters[i]}: ${a.slice(0, 80)}`).setStyle(ButtonStyle.Primary)));
       const msg = await interaction.editReply({ embeds: [embed], components: [row] });
@@ -31,7 +35,7 @@ module.exports = {
         const [,, chosen, correctI] = i.customId.split('_');
         const won = chosen === correctI;
         const newRow = new ActionRowBuilder().addComponents(allAnswers.map((a, idx) => new ButtonBuilder().setCustomId(`done_${idx}`).setLabel(`${letters[idx]}: ${a.slice(0, 80)}`).setStyle(idx === parseInt(correctI) ? ButtonStyle.Success : (idx === parseInt(chosen) && !won) ? ButtonStyle.Danger : ButtonStyle.Secondary).setDisabled(true)));
-        await i.update({ embeds: [embed.setColor(won ? config.colors.success : config.colors.error).setFooter({ text: won ? '✅ Correct!' : `❌ Wrong! The answer was ${letters[correctIdx]}: ${correct}` })], components: [newRow] });
+        await i.update({ embeds: [embed.setColor(won ? config.colors.success : config.colors.error).setFooter(Embed.brandFooter(won ? '✅ Correct!' : `❌ Wrong! The answer was ${letters[correctIdx]}: ${correct}`))], components: [newRow] });
       });
       collector.on('end', async (_, reason) => { if (reason === 'time') await interaction.editReply({ components: [] }).catch(() => {}); });
     } catch { await interaction.editReply({ embeds: [Embed.error('Error', 'Could not fetch trivia. Try again!')] }); }

@@ -18,6 +18,7 @@ module.exports = {
   once: true,
   async execute(client) {
     console.log(`[Loopy] Logged in as ${client.user.tag}`);
+    Embed.setClient(client); // brand embeds with bot avatar
     console.log(`[Loopy] Serving ${client.guilds.cache.size} guilds`);
 
     // Register from the loaded command collection so a separate client ID

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
 const { db, getSetting } = require('../../database');
 const Roblox = require('../../utils/roblox');
@@ -19,9 +19,12 @@ module.exports = {
     let myRank = null;
     if (verification) myRank = await Roblox.getUserGroupRank(verification.roblox_user_id, groupId);
 
-    const rankList = roles.sort((a, b) => b.rank - a.rank).map(r => `\`[${r.rank}]\` **${r.name}**${myRank?.id === r.id ? ' ← *Your Rank*' : ''}`).join('\n');
-    const embed = new EmbedBuilder().setColor(0xFF0000).setTitle(`🟥 ${group?.name || 'Group'} — Ranks`)
-      .setDescription(rankList.slice(0, 3000)).setFooter({ text: `Group ID: ${groupId} • ${roles.length} ranks total` }).setTimestamp();
+    const rankList = roles.sort((a, b) => b.rank - a.rank).map(r => `\`[${String(r.rank).padStart(3, '0')}]\` **${r.name}**${myRank?.id === r.id ? '  ← *Your Rank*' : ''}`).join('\n');
+    const embed = Embed.roblox(
+      `${group?.name || 'Group'} — Ranks`,
+      rankList.slice(0, 3000),
+    );
+    embed.setFooter(Embed.brandFooter(`Group ID: ${groupId} • ${roles.length} ranks total`));
     await interaction.editReply({ embeds: [embed] });
   },
 };

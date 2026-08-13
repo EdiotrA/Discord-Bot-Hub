@@ -1,12 +1,11 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
 const ExpUtil = require('../../utils/exp');
+const config = require('../../config');
 
-function makeProgressBar(current, max, length = 10) {
-  const filled = Math.round((current / max) * length);
-  const empty = length - filled;
-  const percent = Math.round((current / max) * 100);
-  return `${'█'.repeat(filled)}${'░'.repeat(empty)} ${percent}%`;
+function makeProgressBar(current, max, length = 12) {
+  const percent = max > 0 ? Math.round((current / max) * 100) : 0;
+  return `${Embed.bar(current, max, length)} ${percent}%`;
 }
 
 module.exports = {
@@ -32,19 +31,20 @@ module.exports = {
     const totalNeeded = nextLevelExp - currentLevelExp;
     const progressBar = makeProgressBar(progressExp, totalNeeded);
 
-    const embed = new (require('discord.js').EmbedBuilder)()
-      .setColor(0xF1C40F)
-      .setTitle(`📈 Level Stats — ${target.username}`)
+    const embed = new EmbedBuilder()
+      .setColor(config.colors.gold)
+      .setTitle(`📈  Level Stats — ${target.username}`)
       .setThumbnail(target.displayAvatarURL({ dynamic: true }))
       .addFields(
         { name: '🏅 Level', value: `**${currentLevel}**`, inline: true },
         { name: '⭐ Total EXP', value: `**${userData.exp.toLocaleString()}**`, inline: true },
         { name: '🏆 Server Rank', value: `**#${rank}**`, inline: true },
         { name: '💬 Total Messages', value: `**${userData.total_messages?.toLocaleString() || 0}**`, inline: true },
-        { name: '📊 EXP to Next Level', value: `**${expToNext.toLocaleString()}** EXP needed`, inline: true },
-        { name: '📈 Progress', value: `\`${progressBar}\`\n${progressExp.toLocaleString()} / ${totalNeeded.toLocaleString()} EXP`, inline: false },
+        { name: '📊 EXP to Next Level', value: `**${expToNext.toLocaleString()}** needed`, inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        { name: '📈 Progress', value: `\`${progressBar}\`\n> ${progressExp.toLocaleString()} / ${totalNeeded.toLocaleString()} EXP`, inline: false },
       )
-      .setFooter({ text: `Level ${currentLevel} → Level ${currentLevel + 1}` })
+      .setFooter(Embed.brandFooter(`Level ${currentLevel} → Level ${currentLevel + 1}`))
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });

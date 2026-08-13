@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const Embed = require('../../utils/embed');
 const { db } = require('../../database');
 const config = require('../../config');
 
@@ -15,8 +16,13 @@ module.exports = {
     if (interaction.options.getString('status')) { query += ' AND status = ?'; params.push(interaction.options.getString('status')); }
     query += ' ORDER BY submitted_at DESC LIMIT 20';
     const apps = db.prepare(query).all(...params);
-    const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('📋 Applications')
-      .setDescription(apps.length ? apps.map(a => `**#${a.id}** • ${a.type} • <@${a.user_id}> • **${a.status.toUpperCase()}** • <t:${a.submitted_at}:R>`).join('\n') : 'No applications found.').setTimestamp();
+    const statusEmoji = { pending: '🕓', accepted: '✅', denied: '❌' };
+    const embed = new EmbedBuilder().setColor(config.colors.primary).setTitle('📋  Applications')
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
+      .setDescription(apps.length
+        ? apps.map(a => `> ${statusEmoji[a.status] || '•'} **#${a.id}** • \`${a.type}\` • <@${a.user_id}>\n> **${a.status.toUpperCase()}** • <t:${a.submitted_at}:R>`).join(`\n${Embed.divider}\n`)
+        : '*No applications found.*')
+      .setFooter(Embed.brandFooter('Applications')).setTimestamp();
     await interaction.editReply({ embeds: [embed] });
   },
 };

@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const config = require('../../config');
 const Embed = require('../../utils/embed');
 const axios = require('axios');
 module.exports = {
@@ -7,7 +8,13 @@ module.exports = {
     await interaction.deferReply();
     try {
       const { data } = await axios.get('https://meme-api.com/gimme', { timeout: 5000 });
-      const embed = new EmbedBuilder().setColor(0x9B59B6).setTitle(data.title).setImage(data.url).setFooter({ text: `👍 ${data.ups} • r/${data.subreddit}` }).setTimestamp();
+      const embed = new EmbedBuilder()
+        .setColor(config.colors.purple)
+        .setTitle(`🖼️  ${data.title}`)
+        .setDescription(`> **Subreddit:** \`r/${data.subreddit}\`\n> **Upvotes:** 👍 \`${data.ups}\``)
+        .setImage(data.url)
+        .setFooter(Embed.brandFooter('Memes'))
+        .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
     } catch { await interaction.editReply({ embeds: [Embed.error('Error', 'Could not fetch a meme right now. Try again!')] }); }
   },

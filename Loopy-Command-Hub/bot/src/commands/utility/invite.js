@@ -8,6 +8,7 @@ const {
   EmbedBuilder,
 } = require('discord.js');
 const Embed = require('../../utils/embed');
+const config = require('../../config');
 
 // Full permission set Loopy needs to operate properly
 const LOOPY_PERMISSIONS = PermissionsBitField.resolve([
@@ -73,13 +74,13 @@ module.exports = {
 
     let title, description;
     if (serverId) {
-      title = '🔗 Targeted Invite Generated';
+      title = '🔗  Targeted Invite Generated';
       description =
         `This link is pre-filled for server ID \`${serverId}\`.\n\n` +
         `**Share it with an admin of that server.** When they open it, Discord will skip the server picker and go straight to the approval screen for that server.\n\n` +
         `> ⚠️ The admin of that server **must still click Authorise** — Loopy cannot join without their approval.`;
     } else {
-      title = '🔗 Add Loopy to a Server';
+      title = '🔗  Add Loopy to a Server';
       description =
         `Click **Add to Server** to pick a server from your list.\n\n` +
         `To target a specific server, run \`/invite serverid:<id>\` — the bot picker will skip straight to that server's approval screen.\n\n` +
@@ -87,14 +88,15 @@ module.exports = {
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x5865F2)
+      .setColor(config.colors.primary)
       .setTitle(title)
       .setDescription(description)
+      .setThumbnail(interaction.client.user.displayAvatarURL({ dynamic: true }))
       .addFields(
-        { name: '📋 Permissions', value: 'Moderation, voice, channels, roles, messages', inline: true },
-        { name: '🔑 Scope', value: '`bot` + `applications.commands`', inline: true },
+        { name: '📋 Permissions', value: '> Moderation, voice, channels, roles, messages', inline: true },
+        { name: '🔑 Scope', value: '> `bot` + `applications.commands`', inline: true },
       )
-      .setFooter({ text: 'Loopy Bot • Invite System' })
+      .setFooter(Embed.brandFooter('Invite System'))
       .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(

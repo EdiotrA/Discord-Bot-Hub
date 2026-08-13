@@ -26,15 +26,16 @@ module.exports = {
       isBot: target.bot,
     };
     const summary = await AI.summarizeBackgroundCheck(data);
-    const embed = new EmbedBuilder().setColor(config.colors.primary)
-      .setTitle(`🔍 Background Check — ${target.tag}`)
+    const embed = new EmbedBuilder().setColor(config.colors.moderation)
+      .setTitle(`🔍  Background Check — ${target.tag}`)
       .setThumbnail(target.displayAvatarURL({ dynamic: true }))
+      .setDescription(`> **User:** <@${target.id}> \`${target.id}\``)
       .addFields(
-        { name: '📋 Basic Info', value: `**ID:** ${target.id}\n**Created:** <t:${Math.floor(target.createdTimestamp / 1000)}:R>\n**Joined:** ${member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Unknown'}`, inline: true },
-        { name: '⚠️ Mod History', value: `**Warnings:** ${warns.c}\n**Actions:** ${logs.length}`, inline: true },
-        { name: '🟥 Roblox', value: verification?.roblox_username || 'Not verified', inline: true },
-        { name: '🤖 AI Summary', value: summary?.slice(0, 1000) || 'Could not generate summary.' },
-      ).setTimestamp();
+        Embed.field('📋 Basic Info', `**Created:** <t:${Math.floor(target.createdTimestamp / 1000)}:R>\n**Joined:** ${member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : '`Unknown`'}`, true),
+        Embed.field('⚠️ Mod History', `**Warnings:** \`${warns.c}\`\n**Actions:** \`${logs.length}\``, true),
+        Embed.field('🟥 Roblox', `\`${verification?.roblox_username || 'Not verified'}\``, true),
+        Embed.field('🤖 AI Summary', summary?.slice(0, 1000) || '*Could not generate summary.*', false),
+      ).setFooter(Embed.brandFooter('Background Check')).setTimestamp();
     await interaction.editReply({ embeds: [embed] });
   },
 };

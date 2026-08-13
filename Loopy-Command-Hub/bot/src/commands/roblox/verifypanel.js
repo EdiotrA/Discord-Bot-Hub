@@ -1,7 +1,6 @@
 const {
   SlashCommandBuilder,
   PermissionFlagsBits,
-  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -36,12 +35,14 @@ module.exports = {
     const title = interaction.options.getString('title') || 'Roblox Verification';
     const description = interaction.options.getString('description')
       || 'Click below to start verification. Loopy will check your Roblox profile and give you the configured verified role.';
-    const embed = new EmbedBuilder()
-      .setColor(config.colors.primary)
-      .setTitle(title)
-      .setDescription(description)
-      .setFooter({ text: interaction.guild.name })
-      .setTimestamp();
+    const embed = Embed.base({
+      color: config.colors.primary,
+      emoji: config.emojis.roblox,
+      title,
+      description: `${Embed.divider}\n${description}\n${Embed.divider}`,
+      thumbnail: interaction.guild.iconURL?.({ dynamic: true }) || null,
+      footer: 'Roblox Integration',
+    });
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('verify_start')

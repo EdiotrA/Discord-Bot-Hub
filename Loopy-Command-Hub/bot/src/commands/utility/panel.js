@@ -25,15 +25,16 @@ module.exports = {
     const channel = interaction.options.getChannel('channel') || interaction.channel;
     const embed = new EmbedBuilder()
       .setColor(config.colors.primary)
-      .setTitle('Loopy Command Hub')
-      .setDescription('Everything below is ready to click. Members can start verification, open support, get economy options, browse Mog, or ask Loopy for help without remembering command names.')
+      .setTitle('✨  Loopy Command Hub')
+      .setDescription(`${Embed.divider}\nEverything below is **ready to click**. Members can start verification, open support, get economy options, browse Mog, or ask Loopy for help — no command names to remember.\n${Embed.divider}`)
+      .setThumbnail(interaction.guild.iconURL({ dynamic: true }))
       .addFields(
-        { name: 'Verification', value: 'Start Roblox verification from a button.', inline: true },
-        { name: 'Support', value: 'Open a ticket in one click.', inline: true },
-        { name: 'Mog & Economy', value: 'Open profiles, shops, daily coins, and bets.', inline: true },
-        { name: 'AI Helper', value: 'Ask about coding, UI, debugging, or server questions.', inline: true },
+        { name: '🔍 Verification', value: '> Start Roblox verification from a button.', inline: true },
+        { name: '🎫 Support', value: '> Open a ticket in one click.', inline: true },
+        { name: '🪙 Mog & Economy', value: '> Open profiles, shops, daily coins, and bets.', inline: true },
+        { name: '🤖 AI Helper', value: '> Ask about coding, UI, debugging, or server questions.', inline: true },
       )
-      .setFooter({ text: interaction.guild.name })
+      .setFooter(Embed.brandFooter(interaction.guild.name))
       .setTimestamp();
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('hub:verify').setLabel('Verify').setStyle(ButtonStyle.Primary).setEmoji('🔍'),
