@@ -11,6 +11,89 @@ const headers = () => ({
   'Content-Type': 'application/json',
 });
 
+// ── Cookie-authenticated requests (.ROBLOSECURITY) ────────────────────────────
+
+const getCookieHeader = () => {
+  const cookie = process.env.ROBLOX_COOKIE;
+  if (!cookie) return null;
+  return cookie.startsWith('.ROBLOSECURITY=') ? cookie : `.ROBLOSECURITY=${cookie}`;
+};
+
+let cachedCsrfToken = '';
+
+/** Harvest a CSRF token (Roblox returns it in headers of any rejected POST). */
+async function fetchCsrfToken(cookieHeader) {
+  try {
+    await axios.post('https://auth.roblox.com/v2/logout', {}, {
+      headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    const token = err.response?.headers?.['x-csrf-token'];
+    if (token) return token;
+  }
+  return '';
+}
+
+/**
+ * Make an authenticated (cookie) request to a Roblox web API.
+ * Handles CSRF token caching + one automatic retry when the token is stale.
+ */
+async function authedRequest(method, url, data = {}) {
+  const cookieHeader = getCookieHeader();
+  if (!cookieHeader) {
+    return { success: false, needsCookie: true, error: 'No `ROBLOX_COOKIE` secret set.' };
+  }
+
+  if (!cachedCsrfToken) cachedCsrfToken = await fetchCsrfToken(cookieHeader);
+
+  const doRequest = () => axios({
+    method, url, data,
+    headers: {
+      Cookie: cookieHeader,
+      'X-CSRF-TOKEN': cachedCsrfToken,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  try {
+    const res = await doRequest();
+    return { success: true, data: res.data };
+  } catch (err) {
+    // Stale/missing CSRF token → Roblox replies 403 with a fresh token in headers. Retry once.
+    const freshToken = err.response?.headers?.['x-csrf-token'];
+    if (err.response?.status === 403 && freshToken && freshToken !== cachedCsrfToken) {
+      cachedCsrfToken = freshToken;
+      try {
+        const res = await doRequest();
+        return { success: true, data: res.data };
+      } catch (retryErr) {
+        return authedError(retryErr);
+      }
+    }
+    return authedError(err);
+  }
+}
+
+function authedError(err) {
+  const status = err.response?.status;
+  const msg = err.response?.data?.errors?.[0]?.message
+    || err.response?.data?.message
+    || err.message;
+  if (status === 401) {
+    return {
+      success: false, status,
+      error: `Roblox session expired (401). Log into the bot Roblox account in a browser, copy a fresh \`.ROBLOSECURITY\` cookie, and update the \`ROBLOX_COOKIE\` secret.\n\nDetails: ${msg}`,
+    };
+  }
+  if (status === 403) {
+    return {
+      success: false, status,
+      error: `Permission denied (403). The bot's Roblox account doesn't have permission for this action — make sure it has a group role with the needed permissions.\n\nDetails: ${msg}`,
+    };
+  }
+  return { success: false, status, error: msg || 'Unknown error from Roblox.' };
+}
+
 /**
  * Get Roblox user by username
  */
@@ -94,11 +177,29 @@ async function getUserGroups(userId) {
  * @param {string|number} roleId   - Roblox role ID (the actual large ID, NOT the rank number 1-255)
  */
 async function setUserRank(groupId, userId, roleId) {
-  if (!process.env.ROBLOX_OPEN_CLOUD_KEY) {
+  const hasCookie = Boolean(getCookieHeader());
+  const hasCloudKey = Boolean(process.env.ROBLOX_OPEN_CLOUD_KEY);
+
+  if (!hasCookie && !hasCloudKey) {
     return {
       success: false,
-      error: 'No Roblox Open Cloud API key configured. Ask your server admin to set `ROBLOX_OPEN_CLOUD_KEY` in the bot environment.',
+      error: 'Neither `ROBLOX_COOKIE` nor `ROBLOX_OPEN_CLOUD_KEY` is configured. Set the `ROBLOX_COOKIE` secret to the bot account\'s .ROBLOSECURITY cookie.',
     };
+  }
+
+  // Preferred path: cookie-authenticated legacy groups API (works with just ROBLOX_COOKIE).
+  if (hasCookie) {
+    const result = await authedRequest(
+      'patch',
+      `${GROUPS_API}/groups/${groupId}/users/${userId}`,
+      { roleId: Number(roleId) }
+    );
+    if (result.success) return result;
+    if (result.status === 403) {
+      result.error = `Permission denied (403). The bot's Roblox account must be in the group with a role that has the **Manage lower-ranked member ranks** permission, and its rank must be ABOVE the target rank.\n\nDetails: ${result.error.split('Details: ').pop()}`;
+    }
+    // If the cookie is unauthorized/expired but an Open Cloud key is available, fall through to it.
+    if (!hasCloudKey || (result.status !== 401 && result.status !== 403)) return result;
   }
 
   try {
@@ -161,60 +262,36 @@ async function setUserRank(groupId, userId, roleId) {
  *  2. POST to the group join endpoint with the cookie + CSRF token.
  */
 async function joinGroup(groupId) {
-  const cookie = process.env.ROBLOX_COOKIE;
-  if (!cookie) {
-    return {
-      success: false,
-      needsCookie: true,
-      error: 'No `ROBLOX_COOKIE` secret set. See the command reply for setup instructions.',
-    };
+  const result = await authedRequest('post', `${GROUPS_API}/groups/${groupId}/users`, {});
+  if (!result.success && result.status === 400) {
+    result.error = `Could not join: ${result.error}`;
   }
+  return result;
+}
 
-  const cookieHeader = cookie.startsWith('.ROBLOSECURITY=') ? cookie : `.ROBLOSECURITY=${cookie}`;
+/**
+ * Make the bot's Roblox account leave a group.
+ */
+async function leaveGroup(groupId) {
+  const cookieHeader = getCookieHeader();
+  if (!cookieHeader) return { success: false, needsCookie: true, error: 'No `ROBLOX_COOKIE` secret set.' };
+  const me = await getAuthenticatedUser();
+  if (!me) return { success: false, error: 'Could not resolve the bot Roblox account — cookie may be expired.' };
+  return authedRequest('delete', `${GROUPS_API}/groups/${groupId}/users/${me.id}`);
+}
 
+/**
+ * Get the Roblox account the cookie is logged in as.
+ */
+async function getAuthenticatedUser() {
+  const cookieHeader = getCookieHeader();
+  if (!cookieHeader) return null;
   try {
-    // Step 1 — harvest CSRF token (Roblox returns it in the response headers of any failed POST)
-    let csrfToken = '';
-    try {
-      await axios.post('https://auth.roblox.com/v2/logout', {}, {
-        headers: { Cookie: cookieHeader, 'Content-Type': 'application/json' },
-      });
-    } catch (csrfErr) {
-      csrfToken = csrfErr.response?.headers?.['x-csrf-token'] || '';
-    }
-
-    // Step 2 — join the group
-    const res = await axios.post(
-      `${GROUPS_API}/groups/${groupId}/users`,
-      {},
-      {
-        headers: {
-          Cookie: cookieHeader,
-          'X-CSRF-TOKEN': csrfToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    return { success: true, data: res.data };
-  } catch (err) {
-    const status = err.response?.status;
-    const msg = err.response?.data?.errors?.[0]?.message
-      || err.response?.data?.message
-      || err.message;
-
-    if (status === 401 || status === 403) {
-      return {
-        success: false,
-        error: `Authentication failed (${status}). Your \`ROBLOX_COOKIE\` may be expired — log into the bot Roblox account in a browser, copy a fresh \`.ROBLOSECURITY\` cookie, and update the secret.\n\nDetails: ${msg}`,
-      };
-    }
-    if (status === 400) {
-      // Common 400 reasons: already a member, group is closed/invite-only
-      return { success: false, error: `Could not join: ${msg}` };
-    }
-    return { success: false, error: msg || 'Unknown error from Roblox.' };
-  }
+    const res = await axios.get(`${USERS_API}/users/authenticated`, {
+      headers: { Cookie: cookieHeader },
+    });
+    return res.data;
+  } catch { return null; }
 }
 
 /**
@@ -282,6 +359,8 @@ module.exports = {
   getUserGroups,
   setUserRank,
   joinGroup,
+  leaveGroup,
+  getAuthenticatedUser,
   getGroupMemberCount,
   getFullProfile,
   generateVerifyCode,

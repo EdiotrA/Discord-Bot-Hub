@@ -1,2 +1,3 @@
 - [Discord bot limits](discord-bot-limits.md) — Keep global slash-command registration at or below Discord's 100-command limit.
 - [Discord server access](discord-server-access.md) — Server onboarding must use Discord's explicit invite and permission approval flow; bots cannot silently join arbitrary servers.
+- [Roblox auth strategy](roblox-auth.md) — Roblox writes use the bot account cookie (CSRF harvest + retry); Open Cloud only as ranking fallback; bot account needs in-group rank permissions.
