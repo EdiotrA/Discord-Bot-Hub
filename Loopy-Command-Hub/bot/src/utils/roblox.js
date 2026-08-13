@@ -6,8 +6,8 @@ const USERS_API = 'https://users.roblox.com/v1';
 const GROUPS_API = 'https://groups.roblox.com/v1';
 const THUMBNAILS_API = 'https://thumbnails.roblox.com/v1';
 
-const headers = () => ({
-  'x-api-key': process.env.ROBLOX_OPEN_CLOUD_KEY,
+const headers = (apiKey) => ({
+  'x-api-key': apiKey || process.env.ROBLOX_OPEN_CLOUD_KEY,
   'Content-Type': 'application/json',
 });
 
@@ -176,19 +176,26 @@ async function getUserGroups(userId) {
  * @param {string|number} userId   - Roblox user ID
  * @param {string|number} roleId   - Roblox role ID (the actual large ID, NOT the rank number 1-255)
  */
-async function setUserRank(groupId, userId, roleId) {
+async function setUserRank(groupId, userId, roleId, opts = {}) {
+  // A per-guild Open Cloud API key (opts.openCloudKey) is the preferred path for
+  // multi-group scale: it needs no group membership and no captcha. Falls back
+  // to the global env key, then to the bot cookie.
+  const guildKey = opts.openCloudKey || null;
+  const cloudKey = guildKey || process.env.ROBLOX_OPEN_CLOUD_KEY || null;
   const hasCookie = Boolean(getCookieHeader());
-  const hasCloudKey = Boolean(process.env.ROBLOX_OPEN_CLOUD_KEY);
 
-  if (!hasCookie && !hasCloudKey) {
+  if (!cloudKey && !hasCookie) {
     return {
       success: false,
-      error: 'Neither `ROBLOX_COOKIE` nor `ROBLOX_OPEN_CLOUD_KEY` is configured. Set the `ROBLOX_COOKIE` secret to the bot account\'s .ROBLOSECURITY cookie.',
+      error: 'This server has no Roblox API key set up. A group admin should run `/group apikey <key>` with a Roblox Open Cloud key — no bot join needed.',
     };
   }
 
-  // Preferred path: cookie-authenticated legacy groups API (works with just ROBLOX_COOKIE).
-  if (hasCookie) {
+  // When a per-guild key exists, use Open Cloud directly (scale path).
+  // When there's no guild key but a cookie exists, prefer the cookie path.
+  const preferOpenCloud = Boolean(guildKey);
+
+  if (hasCookie && !preferOpenCloud) {
     const result = await authedRequest(
       'patch',
       `${GROUPS_API}/groups/${groupId}/users/${userId}`,
@@ -199,7 +206,11 @@ async function setUserRank(groupId, userId, roleId) {
       result.error = `Permission denied (403). The bot's Roblox account must be in the group with a role that has the **Manage lower-ranked member ranks** permission, and its rank must be ABOVE the target rank.\n\nDetails: ${result.error.split('Details: ').pop()}`;
     }
     // If the cookie is unauthorized/expired but an Open Cloud key is available, fall through to it.
-    if (!hasCloudKey || (result.status !== 401 && result.status !== 403)) return result;
+    if (!cloudKey || (result.status !== 401 && result.status !== 403)) return result;
+  }
+
+  if (!cloudKey) {
+    return { success: false, error: 'No Open Cloud API key available for this group.' };
   }
 
   try {
@@ -210,7 +221,7 @@ async function setUserRank(groupId, userId, roleId) {
       `${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships`,
       {
         params: { filter: `user == 'users/${userId}'`, maxPageSize: 1 },
-        headers: headers(),
+        headers: headers(cloudKey),
       }
     );
 
@@ -230,7 +241,7 @@ async function setUserRank(groupId, userId, roleId) {
     const patchRes = await axios.patch(
       `${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships/${membershipId}`,
       { role: `groups/${groupId}/roles/${roleId}` },
-      { headers: headers() }
+      { headers: headers(cloudKey) }
     );
     return { success: true, data: patchRes.data };
   } catch (err) {
@@ -333,6 +344,39 @@ async function ensureBotInGroup(groupId) {
 }
 
 /**
+ * Validate an Open Cloud API key against a specific group by making a
+ * lightweight authenticated read. Returns { success, groupName?, error? }.
+ */
+async function testApiKey(groupId, apiKey) {
+  if (!apiKey) return { success: false, error: 'No API key provided.' };
+
+  // Fetch the group name for nice messaging (best-effort).
+  let groupName = null;
+  try {
+    const infoRes = await axios.get(`${ROBLOX_OPEN_CLOUD}/groups/${groupId}`, { headers: headers(apiKey) });
+    groupName = infoRes.data?.displayName || infoRes.data?.name || null;
+  } catch { /* fall through — the memberships check below is the real gate */ }
+
+  // Validate against the SAME resource ranking uses (group memberships). This
+  // requires the key to be authorized for member management on this group, so a
+  // read-only-to-a-different-group key won't pass.
+  try {
+    await axios.get(`${ROBLOX_OPEN_CLOUD}/groups/${groupId}/memberships`, {
+      params: { maxPageSize: 1 },
+      headers: headers(apiKey),
+    });
+    return { success: true, groupName };
+  } catch (err) {
+    const status = err.response?.status;
+    const msg = err.response?.data?.message || err.response?.data?.error || err.message;
+    if (status === 401) return { success: false, error: 'Key rejected (401) — it may be invalid or expired.' };
+    if (status === 403) return { success: false, error: 'Key lacks permission (403) — the key must have the **group:read** and **group:write** scopes authorized for THIS group.' };
+    if (status === 404) return { success: false, error: `Group ${groupId} not found, or the key isn't authorized for it.` };
+    return { success: false, error: msg || 'Could not validate the key.' };
+  }
+}
+
+/**
  * Get group icon thumbnail URL
  */
 async function getGroupThumbnail(groupId) {
@@ -399,6 +443,7 @@ module.exports = {
   joinGroup,
   leaveGroup,
   ensureBotInGroup,
+  testApiKey,
   getAuthenticatedUser,
   getGroupMemberCount,
   getFullProfile,

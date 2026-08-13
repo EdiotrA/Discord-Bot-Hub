@@ -8,7 +8,8 @@ const {
 } = require('discord.js');
 const Embed = require('../../utils/embed');
 const Roblox = require('../../utils/roblox');
-const { getSetting, setSetting } = require('../../database');
+const { getSetting, setSetting, deleteSetting } = require('../../database');
+const { encrypt, decrypt } = require('../../utils/crypto');
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -108,10 +109,91 @@ module.exports = {
             .setDescription('Roblox group ID to join')
             .setRequired(true)
         )
+    )
+
+    // /group apikey <key> — recommended path for ranking at scale (no join, no captcha)
+    .addSubcommand(sub =>
+      sub.setName('apikey')
+        .setDescription('Set this group\'s Roblox Open Cloud API key — enables ranking with NO bot join needed')
+        .addStringOption(o =>
+          o.setName('key')
+            .setDescription('Your Roblox Open Cloud API key (stored encrypted)')
+            .setRequired(true)
+        )
+    )
+
+    // /group apikeyclear — remove the stored API key
+    .addSubcommand(sub =>
+      sub.setName('apikeyclear')
+        .setDescription('Remove this server\'s stored Roblox Open Cloud API key')
+    )
+
+    // /group apikeytest — verify the stored key works
+    .addSubcommand(sub =>
+      sub.setName('apikeytest')
+        .setDescription('Check whether this server\'s Roblox API key is valid and set up correctly')
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
+
+    // ── /group apikey ─────────────────────────────────────────────────────────
+    if (sub === 'apikey') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [Embed.error('Permission Denied', 'You need **Manage Server** permission to set the API key.')], ephemeral: true });
+      }
+      const key = interaction.options.getString('key').trim();
+      const groupId = getSetting(interaction.guildId, 'roblox_group_id');
+      if (!groupId) {
+        return interaction.reply({ embeds: [Embed.error('No Group Linked', 'Link a group first with `/group set <id>`, then set the API key.')], ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      // Validate the key against the linked group before saving.
+      const test = await Roblox.testApiKey(groupId, key);
+      if (!test.success) {
+        return interaction.editReply({ embeds: [Embed.error('Invalid API Key', `${test.error}\n\nMake sure the key has the **group:write** scope and is authorized for group \`${groupId}\`.`)] });
+      }
+
+      setSetting(interaction.guildId, 'roblox_api_key', encrypt(key));
+      const embed = new EmbedBuilder()
+        .setColor(0x57F287)
+        .setTitle('✅  API Key Saved & Verified')
+        .setDescription(
+          `Ranking is now fully automatic for **${test.groupName || `group ${groupId}`}** — no bot join, no captcha, ever.\n\n` +
+          '🔒 Your key is stored **encrypted**. Accept rank requests with `/acceptrank` and the bot ranks people instantly.'
+        )
+        .setTimestamp();
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    // ── /group apikeyclear ────────────────────────────────────────────────────
+    if (sub === 'apikeyclear') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [Embed.error('Permission Denied', 'You need **Manage Server** permission.')], ephemeral: true });
+      }
+      const existing = getSetting(interaction.guildId, 'roblox_api_key');
+      if (!existing) return interaction.reply({ embeds: [Embed.error('Nothing to Clear', 'No API key is set for this server.')], ephemeral: true });
+      deleteSetting(interaction.guildId, 'roblox_api_key');
+      return interaction.reply({ embeds: [Embed.success('🗑️ API Key Removed', 'This server\'s Roblox API key has been deleted.')], ephemeral: true });
+    }
+
+    // ── /group apikeytest ─────────────────────────────────────────────────────
+    if (sub === 'apikeytest') {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({ embeds: [Embed.error('Permission Denied', 'You need **Manage Server** permission.')], ephemeral: true });
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const stored = getSetting(interaction.guildId, 'roblox_api_key');
+      const groupId = getSetting(interaction.guildId, 'roblox_group_id');
+      if (!groupId) return interaction.editReply({ embeds: [Embed.error('No Group Linked', 'Link a group first with `/group set <id>`.')] });
+      if (!stored) return interaction.editReply({ embeds: [Embed.warning('No API Key', 'No API key set. Use `/group apikey <key>` to add one for captcha-free ranking.')] });
+      const key = decrypt(stored);
+      if (!key) return interaction.editReply({ embeds: [Embed.error('Corrupted Key', 'Stored key could not be read — please re-add it with `/group apikey`.')] });
+      const test = await Roblox.testApiKey(groupId, key);
+      if (!test.success) return interaction.editReply({ embeds: [Embed.error('API Key Invalid', test.error)] });
+      return interaction.editReply({ embeds: [Embed.success('✅ API Key Valid', `Ranking works automatically for **${test.groupName || `group ${groupId}`}**.`)] });
+    }
 
     // ── /group set ──────────────────────────────────────────────────────────
     if (sub === 'set') {
@@ -133,6 +215,13 @@ module.exports = {
       ]);
       if (!group) {
         return interaction.editReply({ embeds: [Embed.error('Not Found', `No Roblox group found with ID \`${groupId}\`.\nDouble-check the ID from the group's URL.`)] });
+      }
+
+      // If the linked group is changing, invalidate any stored API key — it was
+      // validated against the OLD group and must not be reused for a new one.
+      const previousGroupId = getSetting(interaction.guildId, 'roblox_group_id');
+      if (previousGroupId && String(previousGroupId) !== String(groupId)) {
+        deleteSetting(interaction.guildId, 'roblox_api_key');
       }
 
       setSetting(interaction.guildId, 'roblox_group_id', groupId);

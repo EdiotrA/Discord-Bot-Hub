@@ -2,6 +2,13 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const Embed = require('../../utils/embed');
 const { db, getSetting } = require('../../database');
 const Roblox = require('../../utils/roblox');
+const { decrypt } = require('../../utils/crypto');
+
+/** Fetch and decrypt this guild's Roblox Open Cloud API key, if set. */
+function getGuildApiKey(guildId) {
+  const stored = getSetting(guildId, 'roblox_api_key');
+  return stored ? decrypt(stored) : null;
+}
 
 /**
  * Check whether the interacting member is authorised to accept/deny rank
@@ -63,7 +70,9 @@ async function handleRankAccept(interaction, requestId) {
     roleId = role.id;
   }
 
-  const result = await Roblox.setUserRank(req.roblox_group_id, req.target_user_id, roleId);
+  const result = await Roblox.setUserRank(req.roblox_group_id, req.target_user_id, roleId, {
+    openCloudKey: getGuildApiKey(req.guild_id),
+  });
   if (!result.success) {
     return interaction.editReply({ embeds: [Embed.error('Rank Failed', `Could not set rank: ${result.error}`)] });
   }
