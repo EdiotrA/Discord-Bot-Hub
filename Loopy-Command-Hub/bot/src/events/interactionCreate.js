@@ -83,14 +83,14 @@ module.exports = {
       }
 
       if (interaction.customId === 'verify_start') {
-        const { buildVerifyModal } = require('../commands/roblox/verify');
-        return interaction.showModal(buildVerifyModal());
+        const { startVerification } = require('../commands/roblox/verify');
+        return startVerification(interaction);
       }
 
       if (action === 'hub') {
         if (args[0] === 'verify') {
-          const { buildVerifyModal } = require('../commands/roblox/verify');
-          return interaction.showModal(buildVerifyModal());
+          const { startVerification } = require('../commands/roblox/verify');
+          return startVerification(interaction);
         }
         if (args[0] === 'ticket') {
           const { handleTicketOpen } = require('../commands/tickets/ticket-panel');

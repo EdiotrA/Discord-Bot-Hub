@@ -166,16 +166,43 @@ router.get("/oauth/discord/callback", async (req: Request, res: Response) => {
   }
 
   // Decode state → userId  (format: base64url of "guildId:userId:robloxUsername")
-  let userId: string;
+  let stateUserId: string;
   try {
     const decoded = Buffer.from(String(state), "base64url").toString("utf8");
     const parts = decoded.split(":");
-    userId = parts[1];
-    if (!userId) throw new Error("no userId in state");
+    stateUserId = parts[1];
+    if (!stateUserId) throw new Error("no userId in state");
   } catch {
     res.send(htmlPage(
       "Invalid State",
       "The authorization link has expired or is invalid. Please run <strong>/verify</strong> in your server to start again.",
+      false,
+    ));
+    return;
+  }
+
+  // SECURITY: never trust the user id embedded in state — verify the actual
+  // Discord identity behind the access token and require it to match. This
+  // prevents a forged state from overwriting another user's token record.
+  let userId: string;
+  try {
+    const meRes = await fetch("https://discord.com/api/v10/users/@me", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!meRes.ok) throw new Error(`users/@me ${meRes.status}`);
+    const me = (await meRes.json()) as { id?: string };
+    if (!me.id) throw new Error("no id in users/@me");
+    userId = me.id;
+  } catch (err) {
+    console.error("[OAuth] Identity verification failed:", err);
+    res.send(htmlPage("Authorization Failed", "Could not verify your Discord identity. Please try again.", false));
+    return;
+  }
+  if (userId !== stateUserId) {
+    console.error(`[OAuth] State/user mismatch: state=${stateUserId} actual=${userId}`);
+    res.send(htmlPage(
+      "Identity Mismatch",
+      "This authorization link was created for a different Discord account. Please start verification again from your own account.",
       false,
     ));
     return;

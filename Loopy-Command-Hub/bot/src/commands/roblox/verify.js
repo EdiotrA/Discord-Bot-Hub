@@ -9,12 +9,21 @@ const AI = require('../../utils/ai');
 
 // ─── OAuth helpers ────────────────────────────────────────────────────────────
 
-/** Return a valid stored OAuth token for the user, or null if absent/expired. */
+/**
+ * Return a valid stored OAuth token for the user, or null if absent/expired
+ * or missing the required grants. Requires exact `guilds` and `guilds.join`
+ * scopes — an older/partial token must not pass, otherwise verification
+ * proceeds without the permissions it needs.
+ */
 function getOAuthToken(userId) {
   const now = Math.floor(Date.now() / 1000);
-  return db.prepare(
+  const row = db.prepare(
     'SELECT * FROM discord_oauth_tokens WHERE user_id = ? AND expires_at > ?',
   ).get(userId, now) || null;
+  if (!row) return null;
+  const scopes = String(row.scope || '').split(/\s+/);
+  if (!scopes.includes('guilds') || !scopes.includes('guilds.join')) return null;
+  return row;
 }
 
 /** Fetch the list of guilds the user is in via their OAuth access token. */
@@ -442,10 +451,10 @@ async function handleOAuthContinue(interaction) {
 // ─── Legacy "I've Joined" button ──────────────────────────────────────────────
 // Kept for servers that don't use OAuth yet.
 async function handleVerifyJoined(interaction) {
-  // Treat as oauth-continue if they have a token; otherwise show modal
-  const oauthToken = getOAuthToken(interaction.user.id);
-  if (oauthToken) return handleOAuthContinue(interaction);
-  return interaction.showModal(buildVerifyModal());
+  // Always start from the top — startVerification enforces the
+  // authorize-first requirement and opens the modal when a token exists.
+  // (handleOAuthContinue is reserved for explicit pending OAuth sessions.)
+  return startVerification(interaction);
 }
 
 // ─── Build the OAuth DM / in-channel ephemeral ───────────────────────────────
@@ -481,6 +490,63 @@ function buildOAuthPrompt(gid, userId) {
   return { embeds: [embed], components: [row] };
 }
 
+// ─── Shared entry point ───────────────────────────────────────────────────────
+// Used by /verify, the verify panel button (verify_start), the hub button, and
+// the legacy verify_joined button — EVERY way verification can start goes
+// through this so the OAuth-first requirement is always enforced.
+
+async function startVerification(interaction) {
+  const gid = interaction.guildId;
+  const userId = interaction.user.id;
+
+  // Already verified?
+  const existing = db.prepare(
+    'SELECT roblox_username FROM verifications WHERE guild_id = ? AND discord_user_id = ?',
+  ).get(gid, userId);
+  if (existing) {
+    return interaction.reply({
+      embeds: [Embed.warning('Already Verified', `You are already verified as **${existing.roblox_username}**. Use \`/unverify\` to reset.`)],
+      ephemeral: true,
+    });
+  }
+
+  // If this server requires guild membership, the user MUST authorize first
+  // so the bot can check and join servers on their behalf.
+  const joinServers = getSetting(gid, 'verify_join_servers') || [];
+  if (Array.isArray(joinServers) && joinServers.length > 0) {
+    const oauthToken = getOAuthToken(userId);
+    if (!oauthToken) {
+      const prompt = buildOAuthPrompt(gid, userId);
+
+      // Try to DM them — if DMs are closed, show it as ephemeral in-channel
+      let dmed = false;
+      try {
+        const dm = await interaction.user.createDM();
+        await dm.send(prompt);
+        dmed = true;
+      } catch { /* DMs closed */ }
+
+      await logVerification(interaction, `⏳ <@${userId}> needs to authorize before verifying.`, 'pending');
+
+      if (dmed) {
+        return interaction.reply({
+          embeds: [Embed.info(
+            'Check Your DMs ✉️',
+            '**You must authorize Loopy before you can verify.**\n\nA message has been sent to your DMs. Click **Authorize Loopy**, then come back and verify again.',
+          )],
+          ephemeral: true,
+        });
+      } else {
+        // DMs closed — show the authorize button right here
+        return interaction.reply({ ...prompt, ephemeral: true });
+      }
+    }
+  }
+
+  // Has token (or no join servers required) — open the Roblox username modal
+  await interaction.showModal(buildVerifyModal());
+}
+
 // ─── Slash command ────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -488,58 +554,11 @@ module.exports = {
     .setName('verify')
     .setDescription('Verify your Roblox account'),
   async execute(interaction) {
-    const gid = interaction.guildId;
-    const userId = interaction.user.id;
-
-    // Already verified?
-    const existing = db.prepare(
-      'SELECT roblox_username FROM verifications WHERE guild_id = ? AND discord_user_id = ?',
-    ).get(gid, userId);
-    if (existing) {
-      return interaction.reply({
-        embeds: [Embed.warning('Already Verified', `You are already verified as **${existing.roblox_username}**. Use \`/unverify\` to reset.`)],
-        ephemeral: true,
-      });
-    }
-
-    // If this server requires guild membership, the user MUST authorize first
-    // so the bot can check and join servers on their behalf.
-    const joinServers = getSetting(gid, 'verify_join_servers') || [];
-    if (Array.isArray(joinServers) && joinServers.length > 0) {
-      const oauthToken = getOAuthToken(userId);
-      if (!oauthToken) {
-        const prompt = buildOAuthPrompt(gid, userId);
-
-        // Try to DM them — if DMs are closed, show it as ephemeral in-channel
-        let dmed = false;
-        try {
-          const dm = await interaction.user.createDM();
-          await dm.send(prompt);
-          dmed = true;
-        } catch { /* DMs closed */ }
-
-        await logVerification(interaction, `⏳ <@${userId}> needs to authorize before verifying.`, 'pending');
-
-        if (dmed) {
-          return interaction.reply({
-            embeds: [Embed.info(
-              'Check Your DMs ✉️',
-              '**You must authorize Loopy before you can verify.**\n\nA message has been sent to your DMs. Click **Authorize Loopy**, then come back and run `/verify` again.',
-            )],
-            ephemeral: true,
-          });
-        } else {
-          // DMs closed — show the authorize button right here
-          return interaction.reply({ ...prompt, ephemeral: true });
-        }
-      }
-    }
-
-    // Has token (or no join servers required) — open the Roblox username modal
-    await interaction.showModal(buildVerifyModal());
+    return startVerification(interaction);
   },
   handleVerifyModal,
   handleVerifyJoined,
   handleOAuthContinue,
   buildVerifyModal,
+  startVerification,
 };
