@@ -5,6 +5,41 @@ let client;
 let remoteUnavailableUntil = 0;
 let remoteErrorLogged = false;
 
+// ---------------------------------------------------------------------------
+// Profile-rating cache
+// ---------------------------------------------------------------------------
+// Keyed on a deterministic snapshot of the profile stats so scores are stable
+// as long as the player's wins/losses/points/items haven't changed.  Any stat
+// change produces a new key → cache miss → fresh AI call.
+//
+// A 2-hour TTL acts as a safety net for very long-lived processes; under normal
+// use the key changes before the TTL ever fires.
+// ---------------------------------------------------------------------------
+const RATING_CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const _ratingCache = new Map(); // key → { result, expiresAt }
+
+function _profileKey(p) {
+  const items = (p.items || []).slice().sort().join(',');
+  return `${p.wins}:${p.losses}:${p.points}:${items}`;
+}
+
+function _cacheGet(key) {
+  const entry = _ratingCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) { _ratingCache.delete(key); return undefined; }
+  return entry.result;
+}
+
+function _cacheSet(key, result) {
+  _ratingCache.set(key, { result, expiresAt: Date.now() + RATING_CACHE_TTL_MS });
+}
+
+/** Evict all expired entries (called before writes to keep memory tidy). */
+function _cacheEvict() {
+  const now = Date.now();
+  for (const [k, v] of _ratingCache) if (now > v.expiresAt) _ratingCache.delete(k);
+}
+
 const localResponses = {
   music: 'Join a voice channel first, then use `/play query: song name or YouTube URL`. If Loopy joins but stays silent, make sure it has **Connect** and **Speak** permission in that voice channel and is not server-muted. Use `/queue`, `/skip`, `/pause`, `/resume`, or `/stop` to control playback.',
   setup: 'Start with `/setup` for server configuration. Then use `/panel` to post the click-ready member hub. Protection commands include `/antiraid`, `/pingprotect`, `/pingstop`, `/antilink`, and `/antiscam`.',
@@ -144,8 +179,19 @@ async function evaluateVerifyAnswers(questions, answers, context = '') {
  * Each profile: { name, wins, losses, points, items: [labels] }.
  * Returns { challenger: {score, verdict}, target: {score, verdict} } or null when AI
  * is unavailable/unparseable (caller falls back to the statistical formula).
+ *
+ * Results are cached by profile snapshot so repeated calls with identical
+ * stats return the same scores without hitting the AI again.
  */
 async function rateMogProfiles(challenger, target) {
+  // Cache key covers both profiles (order-sensitive: A vs B ≠ B vs A).
+  const cacheKey = `pair:${_profileKey(challenger)}||${_profileKey(target)}`;
+  const cached = _cacheGet(cacheKey);
+  if (cached !== undefined) {
+    console.log('[AI] rateMogProfiles: cache hit, returning stable scores.');
+    return cached;
+  }
+
   const describe = (p) => {
     const total = p.wins + p.losses;
     const winRate = total > 0 ? `${Math.round((p.wins / total) * 100)}%` : 'no matches yet';
@@ -156,6 +202,8 @@ async function rateMogProfiles(challenger, target) {
   const result = await ask(prompt, null, 300);
   if (!result) {
     console.warn('[AI] rateMogProfiles: AI unavailable, falling back to statistical formula.');
+    _cacheEvict();
+    _cacheSet(cacheKey, null); // cache the null so we don't hammer AI while it's down
     return null;
   }
   const parsed = extractJson(result);
@@ -164,18 +212,31 @@ async function rateMogProfiles(challenger, target) {
     console.warn('[AI] rateMogProfiles: Could not parse AI response, falling back.\nRaw:', String(result).slice(0, 200));
     return null;
   }
-  return {
+  const rating = {
     challenger: { score: Math.round(parsed.a.score), verdict: String(parsed.a.verdict || '').slice(0, 200) },
     target:     { score: Math.round(parsed.b.score), verdict: String(parsed.b.verdict || '').slice(0, 200) },
   };
+  _cacheEvict();
+  _cacheSet(cacheKey, rating);
+  return rating;
 }
 
 /**
  * Rate a single Mog profile.
  * Profile: { name, wins, losses, points, items: [labels] }.
  * Returns { score, verdict } or null when AI is unavailable/unparseable.
+ *
+ * Results are cached by profile snapshot (wins/losses/points/items) so the
+ * same player always receives the same score until their stats actually change.
  */
 async function rateSingleProfile(profile) {
+  const cacheKey = `single:${_profileKey(profile)}`;
+  const cached = _cacheGet(cacheKey);
+  if (cached !== undefined) {
+    console.log('[AI] rateSingleProfile: cache hit, returning stable score.');
+    return cached;
+  }
+
   const total = profile.wins + profile.losses;
   const winRate = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : 'no matches yet';
   const description = `Name: ${profile.name}\nRecord: ${profile.wins}W/${profile.losses}L (win rate: ${winRate}, ${total} total matches)\nPoints: ${profile.points}\nEquipped items: ${profile.items.length ? profile.items.join(', ') : 'none'}`;
@@ -185,6 +246,8 @@ async function rateSingleProfile(profile) {
   const result = await ask(prompt, null, 150);
   if (!result) {
     console.warn('[AI] rateSingleProfile: AI unavailable.');
+    _cacheEvict();
+    _cacheSet(cacheKey, null); // cache null briefly so we don't hammer AI while it's down
     return null;
   }
   const parsed = extractJson(result);
@@ -192,7 +255,10 @@ async function rateSingleProfile(profile) {
     console.warn('[AI] rateSingleProfile: Could not parse AI response.\nRaw:', String(result).slice(0, 200));
     return null;
   }
-  return { score: Math.round(parsed.score), verdict: String(parsed.verdict || '').slice(0, 200) };
+  const rating = { score: Math.round(parsed.score), verdict: String(parsed.verdict || '').slice(0, 200) };
+  _cacheEvict();
+  _cacheSet(cacheKey, rating);
+  return rating;
 }
 
 /**
