@@ -1,22 +1,23 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Loopy Bot Admin Panel API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: admin
+    description: Owner-only admin panel operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +25,216 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /admin/me:
+    get:
+      operationId: getAdminMe
+      tags: [admin]
+      summary: Get current admin session
+      responses:
+        "200":
+          description: Authenticated owner info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/logout:
+    post:
+      operationId: adminLogout
+      tags: [admin]
+      summary: Logout and destroy session
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get bot stats
+      responses:
+        "200":
+          description: Bot statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStats"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/guilds:
+    get:
+      operationId: getAdminGuilds
+      tags: [admin]
+      summary: List all guilds the bot is in
+      responses:
+        "200":
+          description: List of guilds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BotGuild"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/guilds/{guildId}:
+    delete:
+      operationId: kickFromGuild
+      tags: [admin]
+      summary: Remove bot from a guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bot left guild
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Guild not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/invite-targets:
+    get:
+      operationId: getInviteTargets
+      tags: [admin]
+      summary: List saved force-invite server targets
+      responses:
+        "200":
+          description: List of invite targets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InviteTarget"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: addInviteTarget
+      tags: [admin]
+      summary: Add a server ID to the force-invite list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteTargetInput"
+      responses:
+        "201":
+          description: Target added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteTarget"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/invite-targets/{targetId}:
+    delete:
+      operationId: removeInviteTarget
+      tags: [admin]
+      summary: Remove a server from the force-invite list
+      parameters:
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Target removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/invite-url/{guildId}:
+    get:
+      operationId: getInviteUrl
+      tags: [admin]
+      summary: Generate a bot invite URL pre-filled for a specific guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invite URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteUrl"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +245,123 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required:
+        - ok
+
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+      required:
+        - id
+        - username
+        - avatarUrl
+
+    BotStats:
+      type: object
+      properties:
+        guildCount:
+          type: number
+        totalMembers:
+          type: number
+        commandCount:
+          type: number
+        uptimeSeconds:
+          type: number
+        botUsername:
+          type: string
+        botAvatarUrl:
+          type: ["string", "null"]
+      required:
+        - guildCount
+        - totalMembers
+        - commandCount
+        - uptimeSeconds
+        - botUsername
+        - botAvatarUrl
+
+    BotGuild:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        iconUrl:
+          type: ["string", "null"]
+        memberCount:
+          type: number
+        ownerId:
+          type: string
+        joinedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - iconUrl
+        - memberCount
+        - ownerId
+        - joinedAt
+
+    InviteTarget:
+      type: object
+      properties:
+        id:
+          type: number
+        guildId:
+          type: string
+        label:
+          type: ["string", "null"]
+        botAlreadyIn:
+          type: boolean
+        inviteUrl:
+          type: string
+        addedAt:
+          type: string
+      required:
+        - id
+        - guildId
+        - label
+        - botAlreadyIn
+        - inviteUrl
+        - addedAt
+
+    InviteTargetInput:
+      type: object
+      properties:
+        guildId:
+          type: string
+          minLength: 1
+        label:
+          type: string
+      required:
+        - guildId
+
+    InviteUrl:
+      type: object
+      properties:
+        url:
+          type: string
+        guildId:
+          type: string
+      required:
+        - url
+        - guildId
