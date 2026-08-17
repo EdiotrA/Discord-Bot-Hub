@@ -11,9 +11,13 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setColor(config.colors.purple)
         .setTitle(`🖼️  ${data.title}`)
-        .setDescription(`> **Subreddit:** \`r/${data.subreddit}\`\n> **Upvotes:** 👍 \`${data.ups}\``)
+        .setURL(data.postLink || null)
+        .addFields(
+          { name: '📍 Subreddit', value: `\`r/${data.subreddit}\``, inline: true },
+          { name: '👍 Upvotes', value: `\`${Number(data.ups || 0).toLocaleString()}\``, inline: true },
+        )
         .setImage(data.url)
-        .setFooter(Embed.brandFooter('Memes'))
+        .setFooter(Embed.brandFooter('Fresh from Reddit'))
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
     } catch { await interaction.editReply({ embeds: [Embed.error('Error', 'Could not fetch a meme right now. Try again!')] }); }

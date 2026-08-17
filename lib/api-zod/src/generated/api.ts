@@ -219,6 +219,21 @@ export const SendChannelMessageResponse = zod.object({
 
 
 /**
+ * @summary Run a bot slash command in a Discord channel
+ */
+export const RunBotCommandBody = zod.object({
+  "guildId": zod.string(),
+  "channelId": zod.string(),
+  "command": zod.string().describe('Slash command text, e.g. `\/8ball question: will it rain`')
+})
+
+export const RunBotCommandResponse = zod.object({
+  "ok": zod.boolean(),
+  "messages": zod.number().describe('Number of messages the command posted')
+})
+
+
+/**
  * @summary Generate a bot invite URL pre-filled for a specific guild
  */
 export const GetInviteUrlParams = zod.object({

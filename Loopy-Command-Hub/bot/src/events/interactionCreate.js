@@ -221,6 +221,24 @@ module.exports = {
         const { handleGameButton } = require('../commands/fun/games');
         return handleGameButton(interaction);
       }
+
+      // Arcade / casino buttons
+      if (action === 'arcade') {
+        const { handleArcadeButton } = require('../commands/fun/games');
+        return handleArcadeButton(interaction);
+      }
+      if (action === 'bj') {
+        const Casino = require('../utils/casino');
+        return Casino.handleBlackjackButton(interaction, args[0], args[1], args[2]);
+      }
+      if (action === 'rl') {
+        const Casino = require('../utils/casino');
+        return Casino.handleRouletteButton(interaction, args[0], args[1], args[2]);
+      }
+      if (action === 'cfb') {
+        const Casino = require('../utils/casino');
+        return Casino.handleCoinflipBet(interaction, args[0], args[1], args[2]);
+      }
     }
 
     // ── Select Menu ────────────────────────────────────────────────────────

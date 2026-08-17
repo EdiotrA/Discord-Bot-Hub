@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useGetAdminMe } from "@workspace/api-client-react";
+import { useGetAdminMe, getGetAdminMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -8,7 +8,7 @@ import { useEffect } from "react";
 
 export default function AuthGate() {
   const [, setLocation] = useLocation();
-  const { data, isLoading, error } = useGetAdminMe({ query: { retry: false } });
+  const { data, isLoading, error } = useGetAdminMe({ query: { queryKey: getGetAdminMeQueryKey(), retry: false } });
 
   useEffect(() => {
     if (data && !isLoading) {

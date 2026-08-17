@@ -7,14 +7,25 @@ module.exports = {
     .addStringOption(o => o.setName('question').setDescription('Your question').setRequired(true)),
   async execute(interaction) {
     const q = interaction.options.getString('question');
-    const answer = answers[Math.floor(Math.random() * answers.length)];
-    const positive = answers.indexOf(answer) < 10; const neutral = answers.indexOf(answer) < 15;
+    const idx = Math.floor(Math.random() * answers.length);
+    const answer = answers[idx];
+    const positive = idx < 10; const neutral = idx < 15;
     const color = positive ? config.colors.success : neutral ? config.colors.warning : config.colors.error;
+    const verdict = positive ? '🟢 The signs are good' : neutral ? '🟡 The mists are unclear' : '🔴 The signs are grim';
     const embed = Embed.base({
       color,
-      emoji: '🎱',
-      title: 'Magic 8-Ball',
-      description: `> **Question**\n> ${q}\n\n> **Answer**\n> ${answer}`,
+      title: '🎱 The Magic 8-Ball',
+      description: [
+        '> **Your Question**',
+        `> *${q}*`,
+        '',
+        Embed.divider,
+        '',
+        '> **The 8-Ball Reveals**',
+        `> **${answer}**`,
+        '',
+        `*${verdict}*`,
+      ].join('\n'),
       thumbnail: interaction.user.displayAvatarURL({ dynamic: true }),
       footer: 'The 8-Ball has spoken',
     });

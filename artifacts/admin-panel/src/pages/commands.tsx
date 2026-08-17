@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetAdminCommands } from "@workspace/api-client-react";
+import { useGetAdminCommands, getGetAdminCommandsQueryKey } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ const COMMAND_TYPE: Record<number, { label: string; color: string }> = {
 };
 
 export default function Commands() {
-  const { data: commands, isLoading } = useGetAdminCommands({ query: { staleTime: 120_000 } });
+  const { data: commands, isLoading } = useGetAdminCommands({ query: { queryKey: getGetAdminCommandsQueryKey(), staleTime: 120_000 } });
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 

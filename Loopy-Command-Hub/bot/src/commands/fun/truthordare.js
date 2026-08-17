@@ -33,7 +33,13 @@ module.exports = {
     const label = type === 'truth' ? 'Truth' : 'Dare';
     const color = type === 'truth' ? 0x5865F2 : 0xED4245;
 
-    const embed = Embed.game(`${emoji} ${label}!`, content, [], color);
+    const embed = Embed.base({
+      color,
+      title: `${emoji} ${label}!`,
+      description: `> ${content}`,
+      thumbnail: interaction.user.displayAvatarURL({ dynamic: true }),
+      footer: type === 'truth' ? 'Answer honestly...' : 'No backing out now!',
+    });
 
     await interaction.editReply({ embeds: [embed] });
   },

@@ -34,6 +34,8 @@ import type {
   InviteUrl,
   KickMemberBody,
   OkResponse,
+  RanCommand,
+  RunCommandBody,
   SendMessageBody,
   SentMessage
 } from './api.schemas';
@@ -1193,6 +1195,77 @@ export const useSendChannelMessage = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getSendChannelMessageMutationOptions(options));
+    }
+
+export const getRunBotCommandUrl = () => {
+
+
+
+
+  return `/api/admin/run-command`
+}
+
+/**
+ * @summary Run a bot slash command in a Discord channel
+ */
+export const runBotCommand = async (runCommandBody: RunCommandBody, options?: Parameters<typeof customFetch>[1]): Promise<RanCommand> => {
+
+  return customFetch<RanCommand>(getRunBotCommandUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(runCommandBody)
+  }
+);}
+
+
+
+
+
+export const getRunBotCommandMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBotCommand>>, TError,{data: BodyType<RunCommandBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runBotCommand>>, TError,{data: BodyType<RunCommandBody>}, TContext> => {
+
+const mutationKey = ['runBotCommand'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runBotCommand>>, {data: BodyType<RunCommandBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  runBotCommand(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunBotCommandMutationResult = NonNullable<Awaited<ReturnType<typeof runBotCommand>>>
+    export type RunBotCommandMutationBody = BodyType<RunCommandBody>
+    export type RunBotCommandMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Run a bot slash command in a Discord channel
+ */
+export const useRunBotCommand = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runBotCommand>>, TError,{data: BodyType<RunCommandBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runBotCommand>>,
+        TError,
+        {data: BodyType<RunCommandBody>},
+        TContext
+      > => {
+      return useMutation(getRunBotCommandMutationOptions(options));
     }
 
 export const getGetInviteUrlUrl = (guildId: string,) => {

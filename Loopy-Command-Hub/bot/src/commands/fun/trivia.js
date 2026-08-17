@@ -19,13 +19,18 @@ module.exports = {
       const letters = ['A', 'B', 'C', 'D'];
       const correctIdx = allAnswers.indexOf(correct);
 
+      const diffMap = { easy: 33, medium: 66, hard: 100 };
+      const diffLabel = q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1);
+      const diffBar = Embed.bar(diffMap[q.difficulty] || 50, 100, 10);
       const embed = new EmbedBuilder().setColor(config.colors.game).setTitle('🎯  Trivia Time!')
+        .setDescription(`> **${decode(q.question)}**`)
+        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .addFields(
           { name: '📚 Category', value: `\`${decode(q.category)}\``, inline: true },
-          { name: '📊 Difficulty', value: `\`${q.difficulty.charAt(0).toUpperCase() + q.difficulty.slice(1)}\``, inline: true },
-          { name: '❓ Question', value: `> ${decode(q.question)}`, inline: false },
+          { name: '📊 Difficulty', value: `\`${diffBar}\` ${diffLabel}`, inline: true },
+          { name: '⏱️ Time Limit', value: '`30 seconds`', inline: true },
         )
-        .setFooter(Embed.brandFooter('Trivia • 30 seconds to answer!')).setTimestamp();
+        .setFooter(Embed.brandFooter('Trivia • Pick the correct answer below!')).setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(allAnswers.map((a, i) => new ButtonBuilder().setCustomId(`trivia_ans_${i}_${correctIdx}`).setLabel(`${letters[i]}: ${a.slice(0, 80)}`).setStyle(ButtonStyle.Primary)));
       const msg = await interaction.editReply({ embeds: [embed], components: [row] });

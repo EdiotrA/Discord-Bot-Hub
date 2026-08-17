@@ -63,18 +63,24 @@ module.exports = {
     if (sub === 'balance') {
       const user    = interaction.options.getUser('user') || interaction.user;
       const account = Economy.getBalance(guildId, user.id);
+      const netWorth = account.wallet + account.bank;
+      const walletPct = netWorth > 0 ? Math.round((account.wallet / netWorth) * 100) : 0;
       return interaction.reply({
         embeds: [Embed.base({
           color: config.colors.gold,
-          title: `${user.displayName}'s Balance`,
+          title: `💰 ${user.displayName}'s Balance`,
+          description: [
+            `> **Net Worth:** ${netWorth.toLocaleString()} coins`,
+            `> \`${Embed.bar(account.wallet, netWorth > 0 ? netWorth : 1)}\` **${walletPct}%** in wallet`,
+          ].join('\n'),
           thumbnail: user.displayAvatarURL({ dynamic: true }),
           fields: [
-            Embed.field('Wallet', `${account.wallet.toLocaleString()} coins`, true),
-            Embed.field('Bank',   `${account.bank.toLocaleString()} coins`,   true),
-            Embed.field('Total',  `${(account.wallet + account.bank).toLocaleString()} coins`, true),
-            Embed.field('Daily Streak', `${account.daily_streak} day(s)`, true),
-            Embed.field('All-Time Won',  `${account.total_won.toLocaleString()} coins`,  true),
-            Embed.field('All-Time Lost', `${account.total_lost.toLocaleString()} coins`, true),
+            Embed.field('👛 Wallet', `${account.wallet.toLocaleString()} coins`, true),
+            Embed.field('🏦 Bank',   `${account.bank.toLocaleString()} coins`,   true),
+            Embed.field('💎 Total',  `${netWorth.toLocaleString()} coins`, true),
+            Embed.field('🔥 Daily Streak', `${account.daily_streak} day(s)`, true),
+            Embed.field('📈 All-Time Won',  `${account.total_won.toLocaleString()} coins`,  true),
+            Embed.field('📉 All-Time Lost', `${account.total_lost.toLocaleString()} coins`, true),
           ],
           footer: 'Economy',
         })],
@@ -85,10 +91,29 @@ module.exports = {
     if (sub === 'daily') {
       const result = Economy.claimDaily(guildId, interaction.user.id);
       if (!result.claimed) {
-        return interaction.reply({ embeds: [Embed.warning('Already Claimed', `Come back in **${Economy.formatTime(result.remaining)}**.`)], ephemeral: true });
+        return interaction.reply({ embeds: [Embed.warning('Already Claimed', `⏳ Come back in **${Economy.formatTime(result.remaining)}** for your next reward.`)], ephemeral: true });
       }
+      // Streak bonus caps at 7 days (250 base + streak*50). Show progress toward the max bonus.
+      const cappedStreak = Math.min(result.streak, 7);
+      const maxedOut = result.streak >= 7;
+      const nextBonus = maxedOut ? 250 + 7 * 50 : 250 + Math.min(result.streak + 1, 7) * 50;
       return interaction.reply({
-        embeds: [Embed.success('Daily Reward', `You received **${result.amount.toLocaleString()}** coins.\nStreak: **${result.streak}** day(s)`)],
+        embeds: [Embed.base({
+          color: config.colors.gold,
+          title: '🎁 Daily Reward Claimed',
+          description: [
+            `You received **${result.amount.toLocaleString()}** coins! 💰`,
+            '',
+            `> 🔥 **Streak:** ${result.streak} day${result.streak === 1 ? '' : 's'}`,
+            `> \`${Embed.bar(cappedStreak, 7)}\` ${maxedOut ? 'Max bonus reached!' : `${7 - cappedStreak} day(s) to max bonus`}`,
+            '',
+            maxedOut
+              ? `💎 You're earning the **maximum** daily bonus. Keep it going!`
+              : `⏭️ Claim again tomorrow for **${nextBonus.toLocaleString()}** coins.`,
+          ].join('\n'),
+          thumbnail: interaction.user.displayAvatarURL({ dynamic: true }),
+          footer: 'Come back every day to keep your streak alive',
+        })],
       });
     }
 
@@ -141,7 +166,7 @@ module.exports = {
       }
 
       const lines = rows.map((row, i) => {
-        const pos    = i < 3 ? ['1.', '2.', '3.'][i] : `${i + 1}.`;
+        const pos    = i < 3 ? ['🥇', '🥈', '🥉'][i] : `**${i + 1}.**`;
         const amount = global
           ? `**${row.earned.toLocaleString()}** earned`
           : `**${row.total.toLocaleString()}** coins`;
@@ -152,7 +177,7 @@ module.exports = {
       return interaction.editReply({
         embeds: [Embed.base({
           color:       config.colors.gold,
-          title:       global ? 'Currency Leaderboard — Global' : 'Currency Leaderboard — This Server',
+          title:       global ? '🏆 Currency Leaderboard — Global' : '🏆 Currency Leaderboard — This Server',
           description: lines.join('\n'),
           footer:      global
             ? 'Global · Ranked by coins earned through gameplay (admin gifts excluded)'

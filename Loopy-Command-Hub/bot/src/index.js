@@ -68,6 +68,14 @@ try {
   console.warn('[Loopy] Music not available:', err.message);
 }
 
+// ── Command Bridge (admin panel remote slash commands) ──────────────────────
+try {
+  const { startCommandBridge } = require('./utils/commandBridge');
+  startCommandBridge(client);
+} catch (err) {
+  console.warn('[Loopy] Command bridge not available:', err.message);
+}
+
 // ── Login ────────────────────────────────────────────────────────────────────
 client.login(token).catch(err => {
   console.error('[Loopy] Login failed:', err.message);

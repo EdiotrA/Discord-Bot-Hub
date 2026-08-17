@@ -417,6 +417,49 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /admin/run-command:
+    post:
+      operationId: runBotCommand
+      tags: [admin]
+      summary: Run a bot slash command in a Discord channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunCommandBody"
+      responses:
+        "200":
+          description: Command executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RanCommand"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Command failed (unknown command, bad options, command error)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Bot unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /admin/invite-url/{guildId}:
     get:
       operationId: getInviteUrl
@@ -652,6 +695,33 @@ components:
       required:
         - channelId
         - content
+
+    RunCommandBody:
+      type: object
+      properties:
+        guildId:
+          type: string
+        channelId:
+          type: string
+        command:
+          type: string
+          description: "Slash command text, e.g. `/8ball question: will it rain`"
+      required:
+        - guildId
+        - channelId
+        - command
+
+    RanCommand:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        messages:
+          type: number
+          description: Number of messages the command posted
+      required:
+        - ok
+        - messages
 
     SentMessage:
       type: object

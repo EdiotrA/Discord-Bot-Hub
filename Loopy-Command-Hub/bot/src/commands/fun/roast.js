@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const config = require('../../config');
 const Embed = require('../../utils/embed');
 const AI = require('../../utils/ai');
 module.exports = {
@@ -8,6 +9,13 @@ module.exports = {
     await interaction.deferReply();
     const target = interaction.options.getUser('user');
     const roast = await AI.generateRoast(target.username);
-    await interaction.editReply({ embeds: [Embed.game('🔥 Roast', `${target} — ${roast || 'You\'re so average, even the average is better than you!'}`)] });
+    const embed = Embed.base({
+      color: config.colors.error,
+      title: '🔥 Roasted!',
+      description: `${target}\n\n> *${roast || 'You\'re so average, even the average is better than you!'}*`,
+      thumbnail: target.displayAvatarURL({ dynamic: true }),
+      footer: 'All in good fun — no hard feelings!',
+    });
+    await interaction.editReply({ embeds: [embed] });
   },
 };

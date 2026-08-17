@@ -4,6 +4,8 @@ import {
   useGetAdminGuilds,
   useGetGuildChannels,
   useSendChannelMessage,
+  useRunBotCommand,
+  getGetGuildChannelsQueryKey,
 } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,11 +77,14 @@ function ChannelRunner() {
 
   const { data: channels, isLoading: channelsLoading } = useGetGuildChannels(
     selectedGuildId,
-    { query: { enabled: !!selectedGuildId, staleTime: 30_000 } }
+    { query: { queryKey: getGetGuildChannelsQueryKey(selectedGuildId), enabled: !!selectedGuildId, staleTime: 30_000 } }
   );
 
   const sendMutation = useSendChannelMessage();
+  const runMutation = useRunBotCommand();
   const { toast } = useToast();
+
+  const isCommand = message.trimStart().startsWith("/");
 
   // Only show sendable text channels (type 0=Text, 5=Announcement)
   const textChannels = channels?.filter(c =>
@@ -98,30 +103,39 @@ function ChannelRunner() {
   function handleSend() {
     if (!selectedChannelId || !message.trim()) return;
     setLastSent(false);
-    sendMutation.mutate(
-      { data: { channelId: selectedChannelId, content: message.trim() } },
-      {
-        onSuccess: () => {
-          toast({
-            title: "Message Sent",
-            description: `Delivered to #${selectedChannel?.name ?? selectedChannelId} in ${selectedGuild?.name}`,
-          });
-          setMessage("");
-          setLastSent(true);
-          setTimeout(() => setLastSent(false), 3000);
-        },
-        onError: (err) => {
-          toast({
-            title: "Send Failed",
-            description: (err as { error?: string }).error ?? "Could not send message — check bot permissions",
-            variant: "destructive",
-          });
-        },
-      }
-    );
+    const onSuccess = () => {
+      toast({
+        title: isCommand ? "Command Executed" : "Message Sent",
+        description: `${isCommand ? "Ran in" : "Delivered to"} #${selectedChannel?.name ?? selectedChannelId} in ${selectedGuild?.name}`,
+      });
+      setMessage("");
+      setLastSent(true);
+      setTimeout(() => setLastSent(false), 3000);
+    };
+    const onError = (err: unknown) => {
+      toast({
+        title: isCommand ? "Command Failed" : "Send Failed",
+        description:
+          (err as { error?: string }).error ??
+          (isCommand ? "Command failed — check the name and options" : "Could not send message — check bot permissions"),
+        variant: "destructive",
+      });
+    };
+    if (isCommand) {
+      runMutation.mutate(
+        { data: { guildId: selectedGuildId, channelId: selectedChannelId, command: message.trim() } },
+        { onSuccess, onError }
+      );
+    } else {
+      sendMutation.mutate(
+        { data: { channelId: selectedChannelId, content: message.trim() } },
+        { onSuccess, onError }
+      );
+    }
   }
 
-  const canSend = !!selectedChannelId && message.trim().length > 0 && !sendMutation.isPending;
+  const isPending = sendMutation.isPending || runMutation.isPending;
+  const canSend = !!selectedChannelId && message.trim().length > 0 && !isPending;
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border overflow-hidden">
@@ -221,7 +235,7 @@ function ChannelRunner() {
             Message
           </label>
           <Textarea
-            placeholder="Type your message here…"
+            placeholder={"Type a message… or a slash command like /8ball question: will it rain"}
             className="bg-background/50 border-border focus-visible:ring-primary resize-none min-h-[100px] font-mono text-sm"
             value={message}
             onChange={e => setMessage(e.target.value)}
@@ -234,8 +248,14 @@ function ChannelRunner() {
             disabled={!selectedChannelId}
           />
           <p className="text-[11px] text-muted-foreground">
-            {message.length > 0 && <span className={message.length > 1900 ? "text-destructive" : ""}>{message.length}/2000 chars</span>}
-            {message.length === 0 && "Ctrl+Enter to send"}
+            {message.length > 0 ? (
+              <>
+                {isCommand && <span className="text-primary font-semibold mr-2">⚡ Slash command mode</span>}
+                <span className={message.length > 1900 ? "text-destructive" : ""}>{message.length}/2000 chars</span>
+              </>
+            ) : (
+              "Ctrl+Enter to send · start with / to run a bot command"
+            )}
           </p>
         </div>
 
@@ -245,15 +265,20 @@ function ChannelRunner() {
           disabled={!canSend || message.length > 2000}
           onClick={handleSend}
         >
-          {sendMutation.isPending ? (
+          {isPending ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Sending…
+              {isCommand ? "Running…" : "Sending…"}
             </>
           ) : lastSent ? (
             <>
               <CheckCircle2 className="h-4 w-4 mr-2 text-green-400" />
-              Sent!
+              Done!
+            </>
+          ) : isCommand ? (
+            <>
+              <Terminal className="h-4 w-4 mr-2" />
+              Run Command
             </>
           ) : (
             <>

@@ -38,7 +38,7 @@ interface GuildDetailProps {
 
 // ─── Members Tab ───────────────────────────────────────────────────────────
 function MembersTab({ guildId }: { guildId: string }) {
-  const { data: members, isLoading, error } = useGetGuildMembers(guildId, { limit: 100 }, { query: { staleTime: 30_000 } });
+  const { data: members, isLoading, error } = useGetGuildMembers(guildId, { limit: 100 }, { query: { queryKey: getGetGuildMembersQueryKey(guildId, { limit: 100 }), staleTime: 30_000 } });
   const kickMutation = useKickGuildMember();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -170,7 +170,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function ChannelsTab({ guildId }: { guildId: string }) {
-  const { data: channels, isLoading, error } = useGetGuildChannels(guildId, { query: { staleTime: 30_000 } });
+  const { data: channels, isLoading, error } = useGetGuildChannels(guildId, { query: { queryKey: getGetGuildChannelsQueryKey(guildId), staleTime: 30_000 } });
   const deleteMutation = useDeleteGuildChannel();
   const queryClient = useQueryClient();
   const { toast } = useToast();

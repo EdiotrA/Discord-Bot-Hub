@@ -9,7 +9,7 @@ import { useEffect } from "react";
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const { data: user, isLoading, error } = useGetAdminMe({ query: { retry: false } });
+  const { data: user, isLoading, error } = useGetAdminMe({ query: { queryKey: getGetAdminMeQueryKey(), retry: false } });
   const logout = useAdminLogout();
 
   useEffect(() => {

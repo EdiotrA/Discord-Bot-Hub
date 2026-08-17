@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const config = require('../../config');
 const Embed = require('../../utils/embed');
 const { db } = require('../../database');
 const choices = ['rock', 'paper', 'scissors'];
@@ -13,8 +14,38 @@ module.exports = {
     if ((player === 'rock' && bot === 'scissors') || (player === 'paper' && bot === 'rock') || (player === 'scissors' && bot === 'paper')) result = 'win';
     else if (player !== bot) result = 'lose';
     if (interaction.guild) { const action = result === 'win' ? 'wins' : result === 'lose' ? 'losses' : 'draws'; db.prepare(`INSERT INTO game_stats (guild_id, user_id, game, ${action}) VALUES (?, ?, ?, 1) ON CONFLICT(guild_id, user_id, game) DO UPDATE SET ${action} = ${action} + 1`).run(interaction.guildId, interaction.user.id, 'rps'); }
+
+    let stats = { wins: 0, losses: 0, draws: 0 };
+    if (interaction.guild) {
+      stats = db.prepare('SELECT wins, losses, draws FROM game_stats WHERE guild_id = ? AND user_id = ? AND game = ?')
+        .get(interaction.guildId, interaction.user.id, 'rps') || stats;
+    }
+    const totalGames = (stats.wins || 0) + (stats.losses || 0) + (stats.draws || 0);
+    const decisive = (stats.wins || 0) + (stats.losses || 0);
+    const winRate = decisive > 0 ? Math.round((stats.wins / decisive) * 100) : 0;
+
     const resultText = result === 'win' ? '🎉 You win!' : result === 'lose' ? '😢 You lose!' : '🤝 It\'s a draw!';
-    const color = result === 'win' ? 0x57F287 : result === 'lose' ? 0xED4245 : 0xFEE75C;
-    await interaction.reply({ embeds: [Embed.game('Rock Paper Scissors', `You: ${emoji[player]} **${player}** vs Bot: ${emoji[bot]} **${bot}**\n\n**${resultText}**`, [], color)] });
+    const color = result === 'win' ? config.colors.success : result === 'lose' ? config.colors.error : config.colors.warning;
+
+    const fields = [
+      Embed.field('You', `${emoji[player]} **${player.charAt(0).toUpperCase() + player.slice(1)}**`, true),
+      Embed.field('Bot', `${emoji[bot]} **${bot.charAt(0).toUpperCase() + bot.slice(1)}**`, true),
+      Embed.field('Result', `**${resultText}**`, true),
+    ];
+    if (interaction.guild) {
+      fields.push(Embed.field('Record', `\`${stats.wins || 0}W · ${stats.losses || 0}L · ${stats.draws || 0}D\``, true));
+      fields.push(Embed.field('Games Played', `\`${totalGames}\``, true));
+      fields.push(Embed.field('Win Rate', `\`${Embed.bar(winRate, 100)}\` **${winRate}%**`, false));
+    }
+
+    const embed = Embed.base({
+      color,
+      title: '✊ Rock Paper Scissors ✋',
+      description: `${emoji[player]} **VS** ${emoji[bot]}`,
+      fields,
+      thumbnail: interaction.user.displayAvatarURL({ dynamic: true }),
+      footer: 'Best of luck against the bot',
+    });
+    await interaction.reply({ embeds: [embed] });
   },
 };

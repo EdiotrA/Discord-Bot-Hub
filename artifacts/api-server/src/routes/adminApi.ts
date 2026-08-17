@@ -217,6 +217,40 @@ router.post("/admin/send-message", requireAdmin, async (req: Request, res: Respo
   }
 });
 
+// ─── POST /admin/run-command ──────────────────────────────────────────────
+const BRIDGE_PORT = process.env.LOOPY_BRIDGE_PORT ?? "4310";
+
+router.post("/admin/run-command", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { guildId, channelId, command } = req.body as { guildId?: string; channelId?: string; command?: string };
+  if (!guildId || !channelId || !command?.trim()) {
+    res.status(400).json({ error: "guildId, channelId and command are required" });
+    return;
+  }
+  const { discordUserId } = (req as AuthedRequest).adminSession;
+  try {
+    const bridgeRes = await fetch(`http://127.0.0.1:${BRIDGE_PORT}/run`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-bridge-token": process.env.SESSION_SECRET ?? "",
+      },
+      body: JSON.stringify({ guildId, channelId, userId: discordUserId, command: command.trim() }),
+      signal: AbortSignal.timeout(35_000),
+    });
+    const data = (await bridgeRes.json()) as { ok?: boolean; messages?: number; error?: string };
+    if (!bridgeRes.ok) {
+      // 401/500 from the bridge indicate infrastructure problems, not user error
+      const status = bridgeRes.status === 422 ? 422 : 502;
+      res.status(status).json({ error: data.error ?? "Command failed" });
+      return;
+    }
+    res.json({ ok: true, messages: data.messages ?? 0 });
+  } catch (err) {
+    logger.error({ err, guildId, channelId }, "Command bridge unreachable");
+    res.status(502).json({ error: "Bot is not reachable — is it running?" });
+  }
+});
+
 // ─── Invite targets ───────────────────────────────────────────────────────
 router.get("/admin/invite-targets", requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {

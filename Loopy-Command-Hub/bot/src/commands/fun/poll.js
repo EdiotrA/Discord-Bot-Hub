@@ -21,15 +21,20 @@ function buildPollEmbed(poll, { final = false } = {}) {
   const options = JSON.parse(poll.options);
   const counts = tally(poll.message_id, options.length);
   const total = counts.reduce((a, b) => a + b, 0);
+  const leading = total > 0 ? Math.max(...counts) : -1;
   const lines = options.map((option, i) => {
     const pct = total > 0 ? Math.round((counts[i] / total) * 100) : 0;
-    return `${NUMS[i]} **${option}**\n\`${renderBar(counts[i], total)}\` ${counts[i]} vote${counts[i] === 1 ? '' : 's'} · ${pct}%`;
+    const crown = total > 0 && counts[i] === leading ? ' 👑' : '';
+    return `${NUMS[i]} **${option}**${crown}\n\`${renderBar(counts[i], total)}\` ${counts[i]} vote${counts[i] === 1 ? '' : 's'} · ${pct}%`;
   });
+  const header = final
+    ? `> 🏁 **This poll has closed.**`
+    : `> 🗳️ **Cast your vote below** — ${total} vote${total === 1 ? '' : 's'} so far.`;
   const embed = new EmbedBuilder()
     .setColor(final ? config.colors.gold : config.colors.primary)
     .setTitle(`📊  ${poll.question}`)
-    .setDescription(lines.join('\n\n'))
-    .setFooter(Embed.brandFooter('Polls'))
+    .setDescription(`${header}\n\n${lines.join('\n\n')}`)
+    .setFooter(Embed.brandFooter(final ? 'Poll closed' : 'Live poll · results update in real time'))
     .setTimestamp();
   if (final) {
     const max = Math.max(...counts);

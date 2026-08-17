@@ -24,8 +24,18 @@ module.exports = {
     let turn = 'X';
     const players = { X: interaction.user.id, O: opp.user.id };
     const embed = () => new EmbedBuilder().setColor(config.colors.game).setTitle('❌  Tic Tac Toe  ⭕')
-      .setDescription(`> ❌ **Player X:** <@${players.X}>\n> ⭕ **Player O:** <@${players.O}>\n\n> 🎯 **Turn:** ${turn === 'X' ? `<@${players.X}>` : `<@${players.O}>`} \`(${turn})\``)
-      .setFooter(Embed.brandFooter('Tic Tac Toe')).setTimestamp();
+      .setDescription([
+        '> ❌ **Player X**',
+        `> <@${players.X}>`,
+        '> ⭕ **Player O**',
+        `> <@${players.O}>`,
+        '',
+        Embed.divider,
+        '',
+        `${turn === 'X' ? '❌' : '⭕'} **Current turn:** ${turn === 'X' ? `<@${players.X}>` : `<@${players.O}>`} \`(${turn})\``,
+      ].join('\n'))
+      .setThumbnail(opp.user.displayAvatarURL({ dynamic: true }))
+      .setFooter(Embed.brandFooter('Line up three to win')).setTimestamp();
     const rows = () => board.reduce((acc, _, i) => { const ri = Math.floor(i/3); if (!acc[ri]) acc[ri] = new ActionRowBuilder(); acc[ri].addComponents(new ButtonBuilder().setCustomId(`ttt_${i}`).setLabel(board[i] === 'X' ? '❌' : board[i] === 'O' ? '⭕' : '\u200b').setStyle(board[i] === 'X' ? ButtonStyle.Danger : board[i] === 'O' ? ButtonStyle.Primary : ButtonStyle.Secondary).setDisabled(!!board[i])); return acc; }, []);
     await interaction.reply({ content: `${opp}, you've been challenged to Tic Tac Toe by ${interaction.user}!`, embeds: [embed()], components: rows() });
     const msg = await interaction.fetchReply();
@@ -40,9 +50,9 @@ module.exports = {
         collector.stop();
         const disabledRows = rows().map(r => { r.components.forEach(b => b.setDisabled(true)); return r; });
         const msg2 = winner === 'draw'
-          ? `${Embed.divider}\n> 🤝 **It's a draw!**\n${Embed.divider}`
-          : `${Embed.divider}\n> 🎉 **Winner:** <@${players[winner]}> \`(${winner})\`\n${Embed.divider}`;
-        return i.update({ embeds: [new EmbedBuilder().setColor(winner === 'draw' ? config.colors.warning : config.colors.success).setTitle('🏁  Game Over!').setDescription(msg2).setFooter(Embed.brandFooter('Tic Tac Toe')).setTimestamp()], components: disabledRows });
+          ? `${Embed.divider}\n> 🤝 **It's a draw!**\n> A hard-fought stalemate.\n${Embed.divider}`
+          : `${Embed.divider}\n> 🎉 **Winner:** <@${players[winner]}> \`(${winner})\`\n> ${winner === 'X' ? '❌' : '⭕'} claims victory!\n${Embed.divider}`;
+        return i.update({ embeds: [new EmbedBuilder().setColor(winner === 'draw' ? config.colors.warning : config.colors.gold).setTitle('🏁  Game Over!').setDescription(msg2).setThumbnail(winner === 'draw' ? null : (winner === 'X' ? interaction.user.displayAvatarURL({ dynamic: true }) : opp.user.displayAvatarURL({ dynamic: true }))).setFooter(Embed.brandFooter(winner === 'draw' ? 'Nobody wins this round' : 'GG — well played')).setTimestamp()], components: disabledRows });
       }
       turn = turn === 'X' ? 'O' : 'X';
       await i.update({ embeds: [embed()], components: rows() });

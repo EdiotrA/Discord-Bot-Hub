@@ -72,7 +72,7 @@ export default function InviteManager() {
       onError: (err) => {
         toast({
           title: "Authorization Failed",
-          description: err.error || "Could not add target.",
+          description: (err as { error?: string }).error || "Could not add target.",
           variant: "destructive",
         });
       }
@@ -91,7 +91,7 @@ export default function InviteManager() {
       onError: (err) => {
         toast({
           title: "Revocation Failed",
-          description: err.error || "Could not remove target.",
+          description: (err as { error?: string }).error || "Could not remove target.",
           variant: "destructive",
         });
       }

@@ -103,8 +103,13 @@ router.get("/admin/auth/callback", async (req: Request, res: Response): Promise<
     return;
   }
 
-  // Verify this is the owner
-  if (ownerId && discordUser.id !== ownerId) {
+  // Verify this is the owner — fail closed if OWNER_DISCORD_ID is not configured
+  if (!ownerId) {
+    logger.error("OWNER_DISCORD_ID not set — refusing all admin logins");
+    res.redirect(`${panelUrl}?auth_error=owner_not_configured`);
+    return;
+  }
+  if (discordUser.id !== ownerId) {
     logger.warn({ userId: discordUser.id }, "Non-owner login attempt rejected");
     res.redirect(`${panelUrl}?auth_error=not_owner`);
     return;

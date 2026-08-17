@@ -104,6 +104,19 @@ export interface SendMessageBody {
   content: string;
 }
 
+export interface RunCommandBody {
+  guildId: string;
+  channelId: string;
+  /** Slash command text, e.g. `/8ball question: will it rain` */
+  command: string;
+}
+
+export interface RanCommand {
+  ok: boolean;
+  /** Number of messages the command posted */
+  messages: number;
+}
+
 export interface SentMessage {
   ok: boolean;
   messageId: string;
