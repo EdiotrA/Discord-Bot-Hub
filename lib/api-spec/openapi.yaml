@@ -129,6 +129,176 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /admin/guilds/{guildId}/members:
+    get:
+      operationId: getGuildMembers
+      tags: [admin]
+      summary: List members in a guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of guild members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuildMember"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Guild not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/guilds/{guildId}/members/{userId}/kick:
+    post:
+      operationId: kickGuildMember
+      tags: [admin]
+      summary: Kick a member from a guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KickMemberBody"
+      responses:
+        "200":
+          description: Member kicked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/guilds/{guildId}/channels:
+    get:
+      operationId: getGuildChannels
+      tags: [admin]
+      summary: List channels in a guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of guild channels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GuildChannel"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Guild not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/guilds/{guildId}/channels/{channelId}:
+    delete:
+      operationId: deleteGuildChannel
+      tags: [admin]
+      summary: Delete a channel from a guild
+      parameters:
+        - name: guildId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Channel deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Channel not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /admin/commands:
+    get:
+      operationId: getAdminCommands
+      tags: [admin]
+      summary: List all registered bot slash commands
+      responses:
+        "200":
+          description: List of registered commands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BotCommand"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /admin/invite-targets:
     get:
       operationId: getInviteTargets
@@ -320,6 +490,86 @@ components:
         - memberCount
         - ownerId
         - joinedAt
+
+    GuildMember:
+      type: object
+      properties:
+        userId:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        isBot:
+          type: boolean
+        joinedAt:
+          type: ["string", "null"]
+        roles:
+          type: array
+          items:
+            type: string
+      required:
+        - userId
+        - username
+        - displayName
+        - avatarUrl
+        - isBot
+        - joinedAt
+        - roles
+
+    KickMemberBody:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    GuildChannel:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        position:
+          type: number
+        parentId:
+          type: ["string", "null"]
+        parentName:
+          type: ["string", "null"]
+        memberCount:
+          type: ["number", "null"]
+      required:
+        - id
+        - name
+        - type
+        - position
+        - parentId
+        - parentName
+        - memberCount
+
+    BotCommand:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: number
+        guildId:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - description
+        - type
+        - guildId
 
     InviteTarget:
       type: object

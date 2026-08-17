@@ -8,10 +8,15 @@
 
 export * from './adminUser';
 export * from './apiError';
+export * from './botCommand';
 export * from './botGuild';
 export * from './botStats';
+export * from './getGuildMembersParams';
+export * from './guildChannel';
+export * from './guildMember';
 export * from './healthStatus';
 export * from './inviteTarget';
 export * from './inviteTargetInput';
 export * from './inviteUrl';
+export * from './kickMemberBody';
 export * from './okResponse';

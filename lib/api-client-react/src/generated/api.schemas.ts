@@ -45,6 +45,44 @@ export interface BotGuild {
   joinedAt: string | null;
 }
 
+export interface GuildMember {
+  userId: string;
+  username: string;
+  displayName: string;
+  /** @nullable */
+  avatarUrl: string | null;
+  isBot: boolean;
+  /** @nullable */
+  joinedAt: string | null;
+  roles: string[];
+}
+
+export interface KickMemberBody {
+  reason?: string;
+}
+
+export interface GuildChannel {
+  id: string;
+  name: string;
+  type: string;
+  position: number;
+  /** @nullable */
+  parentId: string | null;
+  /** @nullable */
+  parentName: string | null;
+  /** @nullable */
+  memberCount: number | null;
+}
+
+export interface BotCommand {
+  id: string;
+  name: string;
+  description: string;
+  type: number;
+  /** @nullable */
+  guildId: string | null;
+}
+
 export interface InviteTarget {
   id: number;
   guildId: string;
@@ -65,4 +103,8 @@ export interface InviteUrl {
   url: string;
   guildId: string;
 }
+
+export type GetGuildMembersParams = {
+limit?: number;
+};
 

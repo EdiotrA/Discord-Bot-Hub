@@ -22,12 +22,17 @@ import type {
 import type {
   AdminUser,
   ApiError,
+  BotCommand,
   BotGuild,
   BotStats,
+  GetGuildMembersParams,
+  GuildChannel,
+  GuildMember,
   HealthStatus,
   InviteTarget,
   InviteTargetInput,
   InviteUrl,
+  KickMemberBody,
   OkResponse
 } from './api.schemas';
 
@@ -507,6 +512,396 @@ export const useKickFromGuild = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getKickFromGuildMutationOptions(options));
     }
+
+export const getGetGuildMembersUrl = (guildId: string,
+    params?: GetGuildMembersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/guilds/${guildId}/members?${stringifiedParams}` : `/api/admin/guilds/${guildId}/members`
+}
+
+/**
+ * @summary List members in a guild
+ */
+export const getGuildMembers = async (guildId: string,
+    params?: GetGuildMembersParams, options?: Parameters<typeof customFetch>[1]): Promise<GuildMember[]> => {
+
+  return customFetch<GuildMember[]>(getGetGuildMembersUrl(guildId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGuildMembersQueryKey = (guildId: string,
+    params?: GetGuildMembersParams,) => {
+    return [
+    `/api/admin/guilds/${guildId}/members`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetGuildMembersQueryOptions = <TData = Awaited<ReturnType<typeof getGuildMembers>>, TError = ErrorType<ApiError>>(guildId: string,
+    params?: GetGuildMembersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuildMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGuildMembersQueryKey(guildId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildMembers>>> = ({ signal }) => getGuildMembers(guildId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: guildId !== null && guildId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGuildMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGuildMembersQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildMembers>>>
+export type GetGuildMembersQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List members in a guild
+ */
+
+export function useGetGuildMembers<TData = Awaited<ReturnType<typeof getGuildMembers>>, TError = ErrorType<ApiError>>(
+ guildId: string,
+    params?: GetGuildMembersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuildMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGuildMembersQueryOptions(guildId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getKickGuildMemberUrl = (guildId: string,
+    userId: string,) => {
+
+
+
+
+  return `/api/admin/guilds/${guildId}/members/${userId}/kick`
+}
+
+/**
+ * @summary Kick a member from a guild
+ */
+export const kickGuildMember = async (guildId: string,
+    userId: string,
+    kickMemberBody?: KickMemberBody, options?: Parameters<typeof customFetch>[1]): Promise<OkResponse> => {
+
+  return customFetch<OkResponse>(getKickGuildMemberUrl(guildId,userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(kickMemberBody)
+  }
+);}
+
+
+
+
+
+export const getKickGuildMemberMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof kickGuildMember>>, TError,{guildId: string;userId: string;data?: BodyType<KickMemberBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof kickGuildMember>>, TError,{guildId: string;userId: string;data?: BodyType<KickMemberBody>}, TContext> => {
+
+const mutationKey = ['kickGuildMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof kickGuildMember>>, {guildId: string;userId: string;data?: BodyType<KickMemberBody>}> = (props) => {
+          const {guildId,userId,data} = props ?? {};
+
+          return  kickGuildMember(guildId,userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type KickGuildMemberMutationResult = NonNullable<Awaited<ReturnType<typeof kickGuildMember>>>
+    export type KickGuildMemberMutationBody = BodyType<KickMemberBody> | undefined
+    export type KickGuildMemberMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Kick a member from a guild
+ */
+export const useKickGuildMember = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof kickGuildMember>>, TError,{guildId: string;userId: string;data?: BodyType<KickMemberBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof kickGuildMember>>,
+        TError,
+        {guildId: string;userId: string;data?: BodyType<KickMemberBody>},
+        TContext
+      > => {
+      return useMutation(getKickGuildMemberMutationOptions(options));
+    }
+
+export const getGetGuildChannelsUrl = (guildId: string,) => {
+
+
+
+
+  return `/api/admin/guilds/${guildId}/channels`
+}
+
+/**
+ * @summary List channels in a guild
+ */
+export const getGuildChannels = async (guildId: string, options?: Parameters<typeof customFetch>[1]): Promise<GuildChannel[]> => {
+
+  return customFetch<GuildChannel[]>(getGetGuildChannelsUrl(guildId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGuildChannelsQueryKey = (guildId: string,) => {
+    return [
+    `/api/admin/guilds/${guildId}/channels`
+    ] as const;
+    }
+
+
+export const getGetGuildChannelsQueryOptions = <TData = Awaited<ReturnType<typeof getGuildChannels>>, TError = ErrorType<ApiError>>(guildId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuildChannels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGuildChannelsQueryKey(guildId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGuildChannels>>> = ({ signal }) => getGuildChannels(guildId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: guildId !== null && guildId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGuildChannels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGuildChannelsQueryResult = NonNullable<Awaited<ReturnType<typeof getGuildChannels>>>
+export type GetGuildChannelsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List channels in a guild
+ */
+
+export function useGetGuildChannels<TData = Awaited<ReturnType<typeof getGuildChannels>>, TError = ErrorType<ApiError>>(
+ guildId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGuildChannels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGuildChannelsQueryOptions(guildId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteGuildChannelUrl = (guildId: string,
+    channelId: string,) => {
+
+
+
+
+  return `/api/admin/guilds/${guildId}/channels/${channelId}`
+}
+
+/**
+ * @summary Delete a channel from a guild
+ */
+export const deleteGuildChannel = async (guildId: string,
+    channelId: string, options?: Parameters<typeof customFetch>[1]): Promise<OkResponse> => {
+
+  return customFetch<OkResponse>(getDeleteGuildChannelUrl(guildId,channelId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteGuildChannelMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuildChannel>>, TError,{guildId: string;channelId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGuildChannel>>, TError,{guildId: string;channelId: string}, TContext> => {
+
+const mutationKey = ['deleteGuildChannel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGuildChannel>>, {guildId: string;channelId: string}> = (props) => {
+          const {guildId,channelId} = props ?? {};
+
+          return  deleteGuildChannel(guildId,channelId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGuildChannelMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGuildChannel>>>
+
+    export type DeleteGuildChannelMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Delete a channel from a guild
+ */
+export const useDeleteGuildChannel = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGuildChannel>>, TError,{guildId: string;channelId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGuildChannel>>,
+        TError,
+        {guildId: string;channelId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteGuildChannelMutationOptions(options));
+    }
+
+export const getGetAdminCommandsUrl = () => {
+
+
+
+
+  return `/api/admin/commands`
+}
+
+/**
+ * @summary List all registered bot slash commands
+ */
+export const getAdminCommands = async ( options?: Parameters<typeof customFetch>[1]): Promise<BotCommand[]> => {
+
+  return customFetch<BotCommand[]>(getGetAdminCommandsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminCommandsQueryKey = () => {
+    return [
+    `/api/admin/commands`
+    ] as const;
+    }
+
+
+export const getGetAdminCommandsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminCommands>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCommands>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminCommandsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminCommands>>> = ({ signal }) => getAdminCommands({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminCommands>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminCommandsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminCommands>>>
+export type GetAdminCommandsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary List all registered bot slash commands
+ */
+
+export function useGetAdminCommands<TData = Awaited<ReturnType<typeof getAdminCommands>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminCommands>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminCommandsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetInviteTargetsUrl = () => {
 

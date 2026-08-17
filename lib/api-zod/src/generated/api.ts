@@ -74,6 +74,91 @@ export const KickFromGuildResponse = zod.object({
 
 
 /**
+ * @summary List members in a guild
+ */
+export const GetGuildMembersParams = zod.object({
+  "guildId": zod.coerce.string()
+})
+
+export const GetGuildMembersQueryParams = zod.object({
+  "limit": zod.coerce.number().optional()
+})
+
+export const GetGuildMembersResponseItem = zod.object({
+  "userId": zod.string(),
+  "username": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullable(),
+  "isBot": zod.boolean(),
+  "joinedAt": zod.string().nullable(),
+  "roles": zod.array(zod.string())
+})
+export const GetGuildMembersResponse = zod.array(GetGuildMembersResponseItem)
+
+
+/**
+ * @summary Kick a member from a guild
+ */
+export const KickGuildMemberParams = zod.object({
+  "guildId": zod.coerce.string(),
+  "userId": zod.coerce.string()
+})
+
+export const KickGuildMemberBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const KickGuildMemberResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary List channels in a guild
+ */
+export const GetGuildChannelsParams = zod.object({
+  "guildId": zod.coerce.string()
+})
+
+export const GetGuildChannelsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string(),
+  "position": zod.number(),
+  "parentId": zod.string().nullable(),
+  "parentName": zod.string().nullable(),
+  "memberCount": zod.number().nullable()
+})
+export const GetGuildChannelsResponse = zod.array(GetGuildChannelsResponseItem)
+
+
+/**
+ * @summary Delete a channel from a guild
+ */
+export const DeleteGuildChannelParams = zod.object({
+  "guildId": zod.coerce.string(),
+  "channelId": zod.coerce.string()
+})
+
+export const DeleteGuildChannelResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary List all registered bot slash commands
+ */
+export const GetAdminCommandsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "type": zod.number(),
+  "guildId": zod.string().nullable()
+})
+export const GetAdminCommandsResponse = zod.array(GetAdminCommandsResponseItem)
+
+
+/**
  * @summary List saved force-invite server targets
  */
 export const GetInviteTargetsResponseItem = zod.object({

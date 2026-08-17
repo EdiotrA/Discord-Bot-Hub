@@ -9,6 +9,7 @@ import AuthGate from "@/pages/auth-gate";
 import Dashboard from "@/pages/dashboard";
 import Servers from "@/pages/servers";
 import InviteManager from "@/pages/invite";
+import Commands from "@/pages/commands";
 import { Shell } from "@/components/shell";
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/servers" component={Servers} />
         <Route path="/invite" component={InviteManager} />
+        <Route path="/commands" component={Commands} />
         <Route component={NotFound} />
       </Switch>
     </Shell>

@@ -102,3 +102,108 @@ export function userAvatarUrl(userId: string, avatar: string | null): string | n
   const ext = avatar.startsWith("a_") ? "gif" : "png";
   return `https://cdn.discordapp.com/avatars/${userId}/${avatar}.${ext}?size=64`;
 }
+
+// ─── Member / Channel / Command helpers ────────────────────────────────────
+
+export interface DiscordMember {
+  user: { id: string; username: string; global_name: string | null; avatar: string | null; bot?: boolean };
+  nick: string | null;
+  avatar: string | null;
+  roles: string[];
+  joined_at: string;
+}
+
+export interface DiscordChannel {
+  id: string;
+  name: string;
+  type: number;
+  position: number;
+  parent_id: string | null;
+  member_count?: number;
+}
+
+export interface DiscordCommand {
+  id: string;
+  name: string;
+  description: string;
+  type: number;
+  guild_id?: string;
+}
+
+/** Channel type number → human-readable label */
+const CHANNEL_TYPE_NAMES: Record<number, string> = {
+  0: "Text", 1: "DM", 2: "Voice", 3: "Group DM", 4: "Category",
+  5: "Announcement", 10: "Announcement Thread", 11: "Public Thread",
+  12: "Private Thread", 13: "Stage", 14: "Directory", 15: "Forum", 16: "Media",
+};
+export function channelTypeName(type: number): string {
+  return CHANNEL_TYPE_NAMES[type] ?? `Unknown(${type})`;
+}
+
+/** Fetch up to `limit` members from a guild (max 1000 per call, default 100). */
+export async function getGuildMembers(guildId: string, limit = 100): Promise<DiscordMember[]> {
+  const safeLimit = Math.min(Math.max(1, limit), 1000);
+  const res = await fetch(
+    `${DISCORD_API}/guilds/${guildId}/members?limit=${safeLimit}`,
+    { headers: botHeaders() },
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Discord guild members failed: ${res.status}`);
+  return res.json() as Promise<DiscordMember[]>;
+}
+
+/** Kick a member from a guild. */
+export async function kickMember(guildId: string, userId: string, reason?: string): Promise<void> {
+  const headers: Record<string, string> = { ...botHeaders() };
+  if (reason) headers["X-Audit-Log-Reason"] = encodeURIComponent(reason);
+  const res = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${userId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok && res.status !== 204) {
+    const body = await res.text();
+    throw new Error(`Discord kick member failed: ${res.status} ${body}`);
+  }
+}
+
+/** List all channels in a guild. */
+export async function getGuildChannels(guildId: string): Promise<DiscordChannel[]> {
+  const res = await fetch(`${DISCORD_API}/guilds/${guildId}/channels`, {
+    headers: botHeaders(),
+  });
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Discord guild channels failed: ${res.status}`);
+  return res.json() as Promise<DiscordChannel[]>;
+}
+
+/** Delete a channel. */
+export async function deleteChannel(channelId: string, reason?: string): Promise<void> {
+  const headers: Record<string, string> = { ...botHeaders() };
+  if (reason) headers["X-Audit-Log-Reason"] = encodeURIComponent(reason);
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!res.ok && res.status !== 200) {
+    const body = await res.text();
+    throw new Error(`Discord delete channel failed: ${res.status} ${body}`);
+  }
+}
+
+/** Fetch global application commands. */
+export async function getGlobalCommands(applicationId: string): Promise<DiscordCommand[]> {
+  const res = await fetch(`${DISCORD_API}/applications/${applicationId}/commands`, {
+    headers: botHeaders(),
+  });
+  if (!res.ok) throw new Error(`Discord global commands failed: ${res.status}`);
+  return res.json() as Promise<DiscordCommand[]>;
+}
+
+/** Get the bot's own application ID (cached after first call). */
+let _appId: string | null = null;
+export async function getApplicationId(): Promise<string> {
+  if (_appId) return _appId;
+  const user = await getBotUser();
+  _appId = user.id;
+  return _appId;
+}

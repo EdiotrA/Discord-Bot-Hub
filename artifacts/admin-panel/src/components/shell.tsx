@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useGetAdminMe, useAdminLogout, getGetAdminMeQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LayoutDashboard, Server, Link as LinkIcon, LogOut, Terminal, Activity } from "lucide-react";
+import { LayoutDashboard, Server, Link as LinkIcon, LogOut, Terminal, Activity, Code2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
@@ -41,6 +41,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/servers", label: "Servers", icon: Server },
+    { href: "/commands", label: "Commands", icon: Code2 },
     { href: "/invite", label: "Invite Manager", icon: LinkIcon },
   ];
 
