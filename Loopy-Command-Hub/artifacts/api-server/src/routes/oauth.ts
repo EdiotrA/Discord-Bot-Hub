@@ -100,7 +100,8 @@ router.get("/oauth/discord", (req: Request, res: Response) => {
       .send(htmlPage("Invalid Link", "This link is missing required data.", false));
   }
 
-  const redirectUri = `https://${devDomain}/api/oauth/discord/callback`;
+  const redirectUri = process.env.OAUTH_REDIRECT_URI ||
+    `https://${devDomain}/api/oauth/discord/callback`;
   const url = new URL("https://discord.com/api/oauth2/authorize");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -156,7 +157,8 @@ router.get(
         );
     }
 
-    const redirectUri = `https://${devDomain}/api/oauth/discord/callback`;
+    const redirectUri = process.env.OAUTH_REDIRECT_URI ||
+      `https://${devDomain}/api/oauth/discord/callback`;
 
     // Exchange code for access token
     let tokenData: Record<string, unknown>;

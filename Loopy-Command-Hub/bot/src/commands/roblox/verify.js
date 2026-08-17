@@ -189,8 +189,10 @@ async function handleVerifyModal(interaction) {
     if (!oauthToken) {
       // No OAuth token — request authorization via DM
       const state = Buffer.from(`${gid}:${userId}:${username}`, 'utf8').toString('base64url');
-      const devDomain = process.env.REPLIT_DEV_DOMAIN;
-      const oauthUrl = `https://${devDomain}/api/oauth/discord?state=${state}`;
+      const redirectBase = process.env.OAUTH_REDIRECT_URI
+        ? process.env.OAUTH_REDIRECT_URI.replace('/oauth/discord/callback', '')
+        : `https://${process.env.REPLIT_DEV_DOMAIN}/api`;
+      const oauthUrl = `${redirectBase}/oauth/discord?state=${state}`;
 
       // Save pending state so we can resume after OAuth
       db.prepare(

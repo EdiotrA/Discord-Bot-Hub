@@ -41,3 +41,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+OAUTH_REDIRECT_URI = "https://25e13a02-b550-4be3-9581-81b5e8d853d8-00-5uu3txdmhig6.picard.replit.dev/api/oauth/discord/callback"
