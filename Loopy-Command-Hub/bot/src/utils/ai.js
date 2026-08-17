@@ -171,6 +171,31 @@ async function rateMogProfiles(challenger, target) {
 }
 
 /**
+ * Rate a single Mog profile.
+ * Profile: { name, wins, losses, points, items: [labels] }.
+ * Returns { score, verdict } or null when AI is unavailable/unparseable.
+ */
+async function rateSingleProfile(profile) {
+  const total = profile.wins + profile.losses;
+  const winRate = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : 'no matches yet';
+  const description = `Name: ${profile.name}\nRecord: ${profile.wins}W/${profile.losses}L (win rate: ${winRate}, ${total} total matches)\nPoints: ${profile.points}\nEquipped items: ${profile.items.length ? profile.items.join(', ') : 'none'}`;
+
+  const prompt = `You are judging a "Mog" Discord player profile. Rate this player from 0-100 based on: win rate (most important), total matches played (experience), equipped items (each adds power), and points tier (momentum).\n\n${description}\n\nRespond with ONLY a JSON object: {"score":0-100,"verdict":"one short line summing up this player's mog potential"}`;
+
+  const result = await ask(prompt, null, 150);
+  if (!result) {
+    console.warn('[AI] rateSingleProfile: AI unavailable.');
+    return null;
+  }
+  const parsed = extractJson(result);
+  if (!parsed || typeof parsed.score !== 'number' || parsed.score < 0 || parsed.score > 100) {
+    console.warn('[AI] rateSingleProfile: Could not parse AI response.\nRaw:', String(result).slice(0, 200));
+    return null;
+  }
+  return { score: Math.round(parsed.score), verdict: String(parsed.verdict || '').slice(0, 200) };
+}
+
+/**
  * Read rules from a channel and determine punishment for a violation.
  */
 async function evaluateRuleViolation(rulesText, violationDescription) {
@@ -256,6 +281,7 @@ module.exports = {
   ask,
   evaluateRuleViolation,
   rateMogProfiles,
+  rateSingleProfile,
   generateInfo,
   evaluateVerifyAnswers,
   generateRoast,

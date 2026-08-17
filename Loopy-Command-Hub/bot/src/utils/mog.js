@@ -205,4 +205,4 @@ function itemChoices(type, guildId = null, userId = null) {
   }));
 }
 
-module.exports = { ITEMS, ensureProfile, inventory, getItem, buy, equip, scoreBonus, challenge, leaderboard, globalLeaderboard, shopLines, itemChoices, checkChallengeLimit };
+module.exports = { ITEMS, ensureProfile, inventory, getItem, buy, equip, scoreBonus, equippedLabels, challenge, leaderboard, globalLeaderboard, shopLines, itemChoices, checkChallengeLimit };

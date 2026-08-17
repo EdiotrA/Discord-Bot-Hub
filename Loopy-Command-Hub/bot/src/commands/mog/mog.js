@@ -1,6 +1,8 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Embed = require('../../utils/embed');
 const Mog = require('../../utils/mog');
+
+const AI = require('../../utils/ai');
 const config = require('../../config');
 
 const TYPE_CHOICES = [
@@ -197,6 +199,53 @@ module.exports = {
         : 'Your inventory is empty. Browse `/mog shop` to purchase items.';
       return interaction.reply({
         embeds: [Embed.base({ color: config.colors.primary, title: `${interaction.user.displayName}'s Inventory`, description: desc, footer: 'Mog' })],
+      });
+    }
+
+    // ── Rating ───────────────────────────────────────────────────────────────
+    if (sub === 'rating') {
+      const user    = interaction.options.getUser('user') ?? interaction.user;
+      const profile = Mog.ensureProfile(gid, user.id);
+      const items   = Mog.equippedLabels(profile);
+
+      await interaction.deferReply();
+
+      const rating = await AI.rateSingleProfile({
+        name:   user.displayName,
+        wins:   profile.wins,
+        losses: profile.losses,
+        points: profile.points,
+        items,
+      });
+
+      if (!rating) {
+        return interaction.editReply({
+          embeds: [Embed.base({
+            color: config.colors.warning ?? config.colors.primary,
+            title: `${user.displayName}'s Mog Rating`,
+            description: 'The AI rating service is currently unavailable. Try again shortly or challenge someone to see the rating in action.',
+            footer: 'Mog',
+          })],
+        });
+      }
+
+      const total   = profile.wins + profile.losses;
+      const winRate = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : 'N/A';
+
+      return interaction.editReply({
+        embeds: [Embed.base({
+          color: config.colors.game,
+          title: `${user.displayName}'s Mog Rating`,
+          thumbnail: user.displayAvatarURL({ dynamic: true }),
+          description: `> ${rating.verdict}`,
+          fields: [
+            Embed.field('AI Score', `**${rating.score}** / 100`, true),
+            Embed.field('Record',   `${profile.wins}W / ${profile.losses}L`, true),
+            Embed.field('Win Rate', winRate, true),
+            Embed.field('Equipped Items', items.length ? items.join(', ') : 'None', false),
+          ],
+          footer: 'Mog',
+        })],
       });
     }
 
