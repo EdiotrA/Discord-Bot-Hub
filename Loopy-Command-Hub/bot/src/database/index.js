@@ -428,7 +428,13 @@ for (const statement of [
 const getSetting = (guildId, key, defaultValue = null) => {
   const row = db.prepare('SELECT value FROM guild_settings WHERE guild_id = ? AND key = ?').get(guildId, key);
   if (!row) return defaultValue;
-  try { return JSON.parse(row.value); } catch { return row.value; }
+  try {
+    const parsed = JSON.parse(row.value);
+    // Discord IDs are 17-19 digit numbers that exceed JS number precision —
+    // JSON.parse would silently corrupt the last digits. Keep those as strings.
+    if (typeof parsed === 'number' && (!Number.isSafeInteger(parsed) || String(parsed) !== row.value.trim())) return row.value;
+    return parsed;
+  } catch { return row.value; }
 };
 
 const setSetting = (guildId, key, value) => {

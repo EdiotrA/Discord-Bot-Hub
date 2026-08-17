@@ -269,7 +269,7 @@ function startCommandBridge(client) {
 
     if (req.url === '/test-welcome') {
       let tbody = '';
-      req.on('data', c => { tbody += c; });
+      req.on('data', c => { tbody += c; if (tbody.length > 10_000) { json(413, { error: 'Request too large' }); req.destroy(); } });
       req.on('end', async () => {
         try {
           const { guildId, userId } = JSON.parse(tbody || '{}');
