@@ -46,3 +46,5 @@ channel = "stable-25_05"
 
 [userenv.shared]
 OAUTH_REDIRECT_URI = "https://25e13a02-b550-4be3-9581-81b5e8d853d8-00-5uu3txdmhig6.picard.replit.dev/api/oauth/discord/callback"
+ADMIN_REDIRECT_URI = "https://25e13a02-b550-4be3-9581-81b5e8d853d8-00-5uu3txdmhig6.picard.replit.dev/api/admin/auth/callback"
+OWNER_DISCORD_ID = "1204258728900165666"
