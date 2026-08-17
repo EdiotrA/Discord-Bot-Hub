@@ -67,7 +67,10 @@ module.exports = {
       }
 
       await interaction.deferReply();
-      const result = Mog.challenge(gid, interaction.user.id, target.id);
+      const result = await Mog.challenge(gid, interaction.user.id, target.id, {
+        challenger: interaction.user.displayName,
+        target: target.displayName,
+      });
       const winner = result.winnerId === interaction.user.id ? interaction.user : target;
       const loser  = result.winnerId === interaction.user.id ? target : interaction.user;
 
@@ -80,18 +83,28 @@ module.exports = {
         ? `${interaction.user} eliminated ${target} in a Mog face-off.`
         : `${target} outmogged ${interaction.user}.`;
 
+      const fields = [
+        Embed.field('Winner', `${winner}`, true),
+        Embed.field('Loser',  `${loser}`,  true),
+        Embed.field('Points Gained', `+${result.pointsGained}`, true),
+        Embed.field(`${interaction.user.displayName} Score`, String(challengerScore), true),
+        Embed.field(`${target.displayName} Score`,           String(targetScore),     true),
+      ];
+      if (result.aiRatings) {
+        const { challenger: c, target: t } = result.aiRatings;
+        fields.push(Embed.field(
+          'AI Rating',
+          `**${c.score}** vs **${t.score}**\n${interaction.user.displayName}: ${c.verdict}\n${target.displayName}: ${t.verdict}`,
+          false,
+        ));
+      }
+
       return interaction.editReply({
         embeds: [Embed.base({
           color,
           title,
           description: summary,
-          fields: [
-            Embed.field('Winner', `${winner}`, true),
-            Embed.field('Loser',  `${loser}`,  true),
-            Embed.field('Points Gained', `+${result.pointsGained}`, true),
-            Embed.field(`${interaction.user.displayName} Score`, String(challengerScore), true),
-            Embed.field(`${target.displayName} Score`,           String(targetScore),     true),
-          ],
+          fields,
           footer: 'Mog',
         })],
       });

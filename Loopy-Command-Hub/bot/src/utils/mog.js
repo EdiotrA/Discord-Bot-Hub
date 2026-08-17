@@ -1,5 +1,6 @@
 const { db } = require('../database');
 const Economy = require('./economy');
+const AI = require('./ai');
 
 const ITEMS = {
   pets: {
@@ -65,34 +66,51 @@ function scoreBonus(profile) {
   }, 0);
 }
 
+/** Labels of a profile's equipped items (for AI rating context). */
+function equippedLabels(profile) {
+  return ['pet', 'aura', 'power'].flatMap(col => {
+    const category = col === 'pet' ? 'pets' : col === 'aura' ? 'auras' : 'powers';
+    const item = getItem(category, profile[col]);
+    return item ? [item.label] : [];
+  });
+}
+
 /**
  * Weighted Mog challenge.
  *
- * Score for each player = random base (0–60) + win-rate bonus (0–25)
+ * Score for each player = random base (0–60) + skill bonus (0–25)
  *   + points momentum bonus (0–10) + item bonus.
  *
- * Win-rate bonus means someone with 80% wins gets up to 25 more points
- * than someone on a losing streak, making top players more likely to win
- * without making it deterministic.
+ * Skill bonus: the AI rates both full profiles 0–100 (win rate, matches
+ * played, items, points tier) and that rating scales to 0–25. When AI is
+ * unavailable, falls back to the raw win-rate bonus — so top players are
+ * more likely to win either way, without making it deterministic.
  *
  * Points awarded to winner = max(1, floor(score difference / 8)).
  * Higher skill gap → more points gained per win.
  */
-function challenge(guildId, challengerId, targetId) {
+async function challenge(guildId, challengerId, targetId, names = {}) {
   const challenger = ensureProfile(guildId, challengerId);
   const target = ensureProfile(guildId, targetId);
 
-  function computeScore(profile) {
+  // AI rates both profiles; null → fall back to the win-rate formula.
+  const aiRatings = await AI.rateMogProfiles(
+    { name: names.challenger || 'Challenger', wins: challenger.wins, losses: challenger.losses, points: challenger.points, items: equippedLabels(challenger) },
+    { name: names.target || 'Opponent',       wins: target.wins,     losses: target.losses,     points: target.points,     items: equippedLabels(target) },
+  );
+
+  function computeScore(profile, aiScore) {
     const total = profile.wins + profile.losses;
     const winRate = total > 0 ? profile.wins / total : 0.5; // default 50% for new players
-    const winRateBonus = winRate * 25;
+    // AI score (0–100) scales to the same 0–25 band as the win-rate bonus.
+    const skillBonus = typeof aiScore === 'number' ? (aiScore / 100) * 25 : winRate * 25;
     const momentumBonus = Math.min(profile.points, 200) / 200 * 10;
     const base = Math.random() * 60;
-    return Math.round(base + winRateBonus + momentumBonus + scoreBonus(profile));
+    return Math.round(base + skillBonus + momentumBonus + scoreBonus(profile));
   }
 
-  const challengerScore = computeScore(challenger);
-  const targetScore = computeScore(target);
+  const challengerScore = computeScore(challenger, aiRatings?.challenger.score);
+  const targetScore = computeScore(target, aiRatings?.target.score);
   const won = challengerScore >= targetScore;
 
   const winnerId = won ? challengerId : targetId;
@@ -107,7 +125,7 @@ function challenge(guildId, challengerId, targetId) {
   db.prepare('UPDATE mog_profiles SET losses = losses + 1 WHERE guild_id = ? AND user_id = ?')
     .run(guildId, loserId);
 
-  return { won, challengerScore, targetScore, winnerId, loserId, pointsGained };
+  return { won, challengerScore, targetScore, winnerId, loserId, pointsGained, aiRatings };
 }
 
 function leaderboard(guildId, limit = 10) {

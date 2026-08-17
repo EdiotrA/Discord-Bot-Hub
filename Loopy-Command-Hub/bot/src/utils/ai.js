@@ -140,6 +140,37 @@ async function evaluateVerifyAnswers(questions, answers, context = '') {
 }
 
 /**
+ * Rate two Mog profiles before a challenge.
+ * Each profile: { name, wins, losses, points, items: [labels] }.
+ * Returns { challenger: {score, verdict}, target: {score, verdict} } or null when AI
+ * is unavailable/unparseable (caller falls back to the statistical formula).
+ */
+async function rateMogProfiles(challenger, target) {
+  const describe = (p) => {
+    const total = p.wins + p.losses;
+    const winRate = total > 0 ? `${Math.round((p.wins / total) * 100)}%` : 'no matches yet';
+    return `Name: ${p.name}\nRecord: ${p.wins}W/${p.losses}L (win rate: ${winRate}, ${total} total matches)\nPoints: ${p.points}\nEquipped items: ${p.items.length ? p.items.join(', ') : 'none'}`;
+  };
+  const prompt = `You are judging a "Mog" face-off between two Discord users. Rate each player's profile from 0-100 based on: win rate (most important), total matches played (experience), equipped items (each adds power), and points tier (momentum).\n\nPlayer A:\n${describe(challenger)}\n\nPlayer B:\n${describe(target)}\n\nRespond with ONLY a JSON object: {"a":{"score":0-100,"verdict":"one short line"},"b":{"score":0-100,"verdict":"one short line"}}`;
+
+  const result = await ask(prompt, null, 300);
+  if (!result) {
+    console.warn('[AI] rateMogProfiles: AI unavailable, falling back to statistical formula.');
+    return null;
+  }
+  const parsed = extractJson(result);
+  const valid = (r) => r && typeof r.score === 'number' && r.score >= 0 && r.score <= 100;
+  if (!parsed || !valid(parsed.a) || !valid(parsed.b)) {
+    console.warn('[AI] rateMogProfiles: Could not parse AI response, falling back.\nRaw:', String(result).slice(0, 200));
+    return null;
+  }
+  return {
+    challenger: { score: Math.round(parsed.a.score), verdict: String(parsed.a.verdict || '').slice(0, 200) },
+    target:     { score: Math.round(parsed.b.score), verdict: String(parsed.b.verdict || '').slice(0, 200) },
+  };
+}
+
+/**
  * Read rules from a channel and determine punishment for a violation.
  */
 async function evaluateRuleViolation(rulesText, violationDescription) {
@@ -224,6 +255,7 @@ ${context ? `Useful recent context:\n${context}` : ''}`;
 module.exports = {
   ask,
   evaluateRuleViolation,
+  rateMogProfiles,
   generateInfo,
   evaluateVerifyAnswers,
   generateRoast,
