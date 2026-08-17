@@ -264,8 +264,28 @@ function startCommandBridge(client) {
   }
   const server = http.createServer((req, res) => {
     const json = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-    if (req.method !== 'POST' || req.url !== '/run') return json(404, { error: 'Not found' });
+    if (req.method !== 'POST' || (req.url !== '/run' && req.url !== '/test-welcome')) return json(404, { error: 'Not found' });
     if (req.headers['x-bridge-token'] !== TOKEN) return json(401, { error: 'Unauthorized' });
+
+    if (req.url === '/test-welcome') {
+      let tbody = '';
+      req.on('data', c => { tbody += c; });
+      req.on('end', async () => {
+        try {
+          const { guildId, userId } = JSON.parse(tbody || '{}');
+          if (!guildId || !userId) return json(400, { error: 'guildId and userId are required' });
+          const guild = await client.guilds.fetch(guildId);
+          const member = await guild.members.fetch(userId);
+          const handler = require('../events/guildMemberAdd');
+          await handler.execute(member, client);
+          return json(200, { ok: true, note: 'guildMemberAdd handler executed — check the welcome channel' });
+        } catch (err) {
+          console.error('[Bridge] test-welcome failed:', err.message);
+          return json(422, { error: err.message });
+        }
+      });
+      return;
+    }
 
     let body = '';
     let tooLarge = false;
