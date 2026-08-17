@@ -1,20 +1,36 @@
 import { Router, type Request, type Response } from "express";
 import { DatabaseSync } from "node:sqlite";
 import path from "path";
+import fs from "fs";
 
 const router = Router();
 
 // Shared SQLite DB — bot writes schema, API server reads/writes tokens.
-// process.cwd() = workspace root when launched via pnpm --filter from root.
-const DB_PATH =
-  process.env.LOOPY_DB_PATH ||
-  path.resolve(process.cwd(), "Loopy-Command-Hub/bot/data/loopy.db");
+// The server's cwd is artifacts/api-server (pnpm --filter runs in the package
+// dir), NOT the workspace root — so walk up from cwd until the DB is found.
+function resolveDbPath(): string | null {
+  if (process.env.LOOPY_DB_PATH) return process.env.LOOPY_DB_PATH;
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const candidate = path.join(dir, "Loopy-Command-Hub/bot/data/loopy.db");
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
 
 function getDb(): DatabaseSync | null {
+  const dbPath = resolveDbPath();
+  if (!dbPath) {
+    console.error("[OAuth] Could not locate loopy.db from cwd", process.cwd());
+    return null;
+  }
   try {
-    return new DatabaseSync(DB_PATH);
+    return new DatabaseSync(dbPath);
   } catch (err) {
-    console.error("[OAuth] Cannot open DB at", DB_PATH, err);
+    console.error("[OAuth] Cannot open DB at", dbPath, err);
     return null;
   }
 }
