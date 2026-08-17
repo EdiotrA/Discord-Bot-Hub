@@ -406,6 +406,17 @@ for (const statement of [
   "ALTER TABLE giveaways ADD COLUMN past_winner_ids TEXT DEFAULT '[]'",
   // rank_requests: store actual Roblox role ID (large int) separate from rank number (1-255)
   "ALTER TABLE rank_requests ADD COLUMN requested_role_id INTEGER",
+  // Global leaderboard: track admin-given coins so they're excluded from global rankings
+  "ALTER TABLE economy ADD COLUMN admin_received INTEGER DEFAULT 0",
+  // Mog challenge rate-limiting table (created via exec below)
+  `CREATE TABLE IF NOT EXISTS mog_challenge_log (
+    guild_id TEXT NOT NULL,
+    challenger_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    count INTEGER DEFAULT 0,
+    PRIMARY KEY (guild_id, challenger_id, target_id, date)
+  )`,
 ]) {
   try { db.exec(statement); } catch (error) {
     if (!String(error.message).includes('duplicate column name')) throw error;

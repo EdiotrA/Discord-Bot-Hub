@@ -53,6 +53,43 @@ function leaderboard(guildId, limit = 10) {
     .all(guildId, limit);
 }
 
+/**
+ * Global leaderboard ranked by total_won (gameplay earnings only).
+ * Admin-received coins are excluded so they cannot inflate global rank.
+ */
+function globalLeaderboard(limit = 10) {
+  return db.prepare(`
+    SELECT user_id,
+           SUM(total_won)                                   AS earned,
+           SUM(wallet + bank)                               AS total_balance,
+           SUM(admin_received)                              AS gifted,
+           COUNT(DISTINCT guild_id)                         AS server_count
+    FROM economy
+    GROUP BY user_id
+    ORDER BY earned DESC
+    LIMIT ?
+  `).all(limit);
+}
+
+/**
+ * Admin-give coins to a user, tracked separately so global rankings stay clean.
+ * Returns false if the user account doesn't exist yet (call ensureAccount first).
+ */
+function adminGive(guildId, userId, amount) {
+  amount = Math.floor(Number(amount));
+  if (!Number.isFinite(amount) || amount === 0) return false;
+  ensureAccount(guildId, userId);
+  if (amount > 0) {
+    db.prepare('UPDATE economy SET wallet = wallet + ?, admin_received = admin_received + ? WHERE guild_id = ? AND user_id = ?')
+      .run(amount, amount, guildId, userId);
+  } else {
+    // Taking coins away — clamp at 0, don't touch admin_received
+    db.prepare('UPDATE economy SET wallet = MAX(0, wallet + ?) WHERE guild_id = ? AND user_id = ?')
+      .run(amount, guildId, userId);
+  }
+  return getBalance(guildId, userId);
+}
+
 function canSteal(guildId, userId) {
   const account = ensureAccount(guildId, userId);
   const remaining = 3600 - (Math.floor(Date.now() / 1000) - account.last_steal_at);
@@ -87,4 +124,4 @@ function formatTime(seconds) {
   return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
 }
 
-module.exports = { STARTING_WALLET, MAX_WAGER, ensureAccount, getBalance, changeWallet, transfer, claimDaily, leaderboard, canSteal, markSteal, steal, formatTime };
+module.exports = { STARTING_WALLET, MAX_WAGER, ensureAccount, getBalance, changeWallet, transfer, claimDaily, leaderboard, globalLeaderboard, adminGive, canSteal, markSteal, steal, formatTime };

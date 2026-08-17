@@ -75,6 +75,48 @@ function equippedLabels(profile) {
   });
 }
 
+/** Daily challenge rate limit: max 5 challenges between the same two users per server per day. */
+const DAILY_CHALLENGE_CAP = 5;
+
+function todayUTC() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function checkChallengeLimit(guildId, challengerId, targetId) {
+  const date = todayUTC();
+  const row = db.prepare(
+    'SELECT count FROM mog_challenge_log WHERE guild_id=? AND challenger_id=? AND target_id=? AND date=?'
+  ).get(guildId, challengerId, targetId, date);
+  return { allowed: !row || row.count < DAILY_CHALLENGE_CAP, used: row?.count ?? 0, cap: DAILY_CHALLENGE_CAP };
+}
+
+function incrementChallengeLog(guildId, challengerId, targetId) {
+  const date = todayUTC();
+  db.prepare(`
+    INSERT INTO mog_challenge_log (guild_id, challenger_id, target_id, date, count)
+    VALUES (?, ?, ?, ?, 1)
+    ON CONFLICT(guild_id, challenger_id, target_id, date)
+    DO UPDATE SET count = count + 1
+  `).run(guildId, challengerId, targetId, date);
+}
+
+/**
+ * Global leaderboard — sums points and wins across all servers per user.
+ */
+function globalLeaderboard(limit = 10) {
+  return db.prepare(`
+    SELECT user_id,
+           SUM(points) AS points,
+           SUM(wins)   AS wins,
+           SUM(losses) AS losses,
+           COUNT(DISTINCT guild_id) AS server_count
+    FROM mog_profiles
+    GROUP BY user_id
+    ORDER BY points DESC, wins DESC
+    LIMIT ?
+  `).all(limit);
+}
+
 /**
  * Weighted Mog challenge.
  *
@@ -90,6 +132,9 @@ function equippedLabels(profile) {
  * Higher skill gap → more points gained per win.
  */
 async function challenge(guildId, challengerId, targetId, names = {}) {
+  const limit = checkChallengeLimit(guildId, challengerId, targetId);
+  if (!limit.allowed) return { rateLimited: true, used: limit.used, cap: limit.cap };
+
   const challenger = ensureProfile(guildId, challengerId);
   const target = ensureProfile(guildId, targetId);
 
@@ -125,6 +170,8 @@ async function challenge(guildId, challengerId, targetId, names = {}) {
   db.prepare('UPDATE mog_profiles SET losses = losses + 1 WHERE guild_id = ? AND user_id = ?')
     .run(guildId, loserId);
 
+  incrementChallengeLog(guildId, challengerId, targetId);
+
   return { won, challengerScore, targetScore, winnerId, loserId, pointsGained, aiRatings };
 }
 
@@ -158,4 +205,4 @@ function itemChoices(type, guildId = null, userId = null) {
   }));
 }
 
-module.exports = { ITEMS, ensureProfile, inventory, getItem, buy, equip, scoreBonus, challenge, leaderboard, shopLines, itemChoices };
+module.exports = { ITEMS, ensureProfile, inventory, getItem, buy, equip, scoreBonus, challenge, leaderboard, globalLeaderboard, shopLines, itemChoices, checkChallengeLimit };

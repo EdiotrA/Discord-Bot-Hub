@@ -120,4 +120,21 @@ function getRolesForLevel(guildId, level) {
   return db.prepare('SELECT role_id FROM level_roles WHERE guild_id = ? AND level <= ? ORDER BY level DESC').all(guildId, level).map(r => r.role_id);
 }
 
-module.exports = { getLevel, getExpForLevel, getExpToNextLevel, getUser, addExp, setExp, resetExp, getLeaderboard, getUserRank, canGainExp, getLevelRoles, getRolesForLevel };
+/**
+ * Global EXP leaderboard — sums exp across all servers per user.
+ * EXP is earned-only (no admin gift path), so no exclusions needed.
+ */
+function getGlobalLeaderboard(limit = 10) {
+  return db.prepare(`
+    SELECT user_id,
+           SUM(exp)             AS exp,
+           SUM(total_messages)  AS total_messages,
+           COUNT(DISTINCT guild_id) AS server_count
+    FROM exp
+    GROUP BY user_id
+    ORDER BY exp DESC
+    LIMIT ?
+  `).all(limit);
+}
+
+module.exports = { getLevel, getExpForLevel, getExpToNextLevel, getUser, addExp, setExp, resetExp, getLeaderboard, getGlobalLeaderboard, getUserRank, canGainExp, getLevelRoles, getRolesForLevel };
