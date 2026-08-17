@@ -7,7 +7,6 @@
  */
 import * as zod from 'zod';
 
-
 /**
  * @summary Health check
  */
@@ -206,6 +205,20 @@ export const RemoveInviteTargetResponse = zod.object({
 
 
 /**
+ * @summary Send a message to a Discord channel as the bot
+ */
+export const SendChannelMessageBody = zod.object({
+  "channelId": zod.string(),
+  "content": zod.string()
+})
+
+export const SendChannelMessageResponse = zod.object({
+  "ok": zod.boolean(),
+  "messageId": zod.string()
+})
+
+
+/**
  * @summary Generate a bot invite URL pre-filled for a specific guild
  */
 export const GetInviteUrlParams = zod.object({
@@ -216,5 +229,3 @@ export const GetInviteUrlResponse = zod.object({
   "url": zod.string(),
   "guildId": zod.string()
 })
-
-

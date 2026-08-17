@@ -199,6 +199,20 @@ export async function getGlobalCommands(applicationId: string): Promise<DiscordC
   return res.json() as Promise<DiscordCommand[]>;
 }
 
+/** Send a message to a Discord channel. */
+export async function sendChannelMessage(channelId: string, content: string): Promise<{ id: string }> {
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: botHeaders(),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Discord send message failed: ${res.status} ${body}`);
+  }
+  return res.json() as Promise<{ id: string }>;
+}
+
 /** Get the bot's own application ID (cached after first call). */
 let _appId: string | null = null;
 export async function getApplicationId(): Promise<string> {

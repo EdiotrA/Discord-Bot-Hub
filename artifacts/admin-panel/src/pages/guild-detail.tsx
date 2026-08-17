@@ -38,7 +38,7 @@ interface GuildDetailProps {
 
 // ─── Members Tab ───────────────────────────────────────────────────────────
 function MembersTab({ guildId }: { guildId: string }) {
-  const { data: members, isLoading } = useGetGuildMembers({ guildId, limit: 100 }, { query: { staleTime: 30_000 } });
+  const { data: members, isLoading, error } = useGetGuildMembers(guildId, { limit: 100 }, { query: { staleTime: 30_000 } });
   const kickMutation = useKickGuildMember();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -62,7 +62,7 @@ function MembersTab({ guildId }: { guildId: string }) {
       {
         onSuccess: () => {
           toast({ title: "Member Kicked", description: `${name} was removed from the server.` });
-          queryClient.invalidateQueries({ queryKey: getGetGuildMembersQueryKey({ guildId, limit: 100 }) });
+          queryClient.invalidateQueries({ queryKey: getGetGuildMembersQueryKey(guildId, { limit: 100 }) });
         },
         onError: (err) => {
           toast({ title: "Kick Failed", description: (err as { error?: string }).error ?? "Could not kick member.", variant: "destructive" });
@@ -75,6 +75,14 @@ function MembersTab({ guildId }: { guildId: string }) {
   if (isLoading) return (
     <div className="space-y-3 p-1">
       {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+    </div>
+  );
+
+  if (error) return (
+    <div className="py-10 text-center text-destructive">
+      <ShieldOff className="h-10 w-10 mx-auto mb-3 opacity-40" />
+      <p className="text-sm font-medium">Failed to load members</p>
+      <p className="text-xs text-muted-foreground mt-1">{(error as { error?: string }).error ?? "Check bot permissions (Server Members Intent may be required)"}</p>
     </div>
   );
 
@@ -162,7 +170,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 function ChannelsTab({ guildId }: { guildId: string }) {
-  const { data: channels, isLoading } = useGetGuildChannels({ guildId }, { query: { staleTime: 30_000 } });
+  const { data: channels, isLoading, error } = useGetGuildChannels(guildId, { query: { staleTime: 30_000 } });
   const deleteMutation = useDeleteGuildChannel();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -181,7 +189,7 @@ function ChannelsTab({ guildId }: { guildId: string }) {
       {
         onSuccess: () => {
           toast({ title: "Channel Deleted", description: `#${channelName} has been permanently deleted.`, variant: "destructive" });
-          queryClient.invalidateQueries({ queryKey: getGetGuildChannelsQueryKey({ guildId }) });
+          queryClient.invalidateQueries({ queryKey: getGetGuildChannelsQueryKey(guildId) });
         },
         onError: (err) => {
           toast({ title: "Delete Failed", description: (err as { error?: string }).error ?? "Could not delete channel.", variant: "destructive" });
@@ -194,6 +202,14 @@ function ChannelsTab({ guildId }: { guildId: string }) {
   if (isLoading) return (
     <div className="space-y-3 p-1">
       {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+    </div>
+  );
+
+  if (error) return (
+    <div className="py-10 text-center text-destructive">
+      <Hash className="h-10 w-10 mx-auto mb-3 opacity-40" />
+      <p className="text-sm font-medium">Failed to load channels</p>
+      <p className="text-xs text-muted-foreground mt-1">{(error as { error?: string }).error ?? "Check bot permissions"}</p>
     </div>
   );
 

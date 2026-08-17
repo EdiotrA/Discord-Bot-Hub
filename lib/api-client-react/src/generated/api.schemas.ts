@@ -99,6 +99,16 @@ export interface InviteTargetInput {
   label?: string;
 }
 
+export interface SendMessageBody {
+  channelId: string;
+  content: string;
+}
+
+export interface SentMessage {
+  ok: boolean;
+  messageId: string;
+}
+
 export interface InviteUrl {
   url: string;
   guildId: string;

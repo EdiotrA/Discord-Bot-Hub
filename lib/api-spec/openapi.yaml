@@ -380,6 +380,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 
+  /admin/send-message:
+    post:
+      operationId: sendChannelMessage
+      tags: [admin]
+      summary: Send a message to a Discord channel as the bot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SentMessage"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Discord API error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /admin/invite-url/{guildId}:
     get:
       operationId: getInviteUrl
@@ -604,6 +641,28 @@ components:
           type: string
       required:
         - guildId
+
+    SendMessageBody:
+      type: object
+      properties:
+        channelId:
+          type: string
+        content:
+          type: string
+      required:
+        - channelId
+        - content
+
+    SentMessage:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        messageId:
+          type: string
+      required:
+        - ok
+        - messageId
 
     InviteUrl:
       type: object

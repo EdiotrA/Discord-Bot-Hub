@@ -33,7 +33,9 @@ import type {
   InviteTargetInput,
   InviteUrl,
   KickMemberBody,
-  OkResponse
+  OkResponse,
+  SendMessageBody,
+  SentMessage
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1120,6 +1122,77 @@ export const useRemoveInviteTarget = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getRemoveInviteTargetMutationOptions(options));
+    }
+
+export const getSendChannelMessageUrl = () => {
+
+
+
+
+  return `/api/admin/send-message`
+}
+
+/**
+ * @summary Send a message to a Discord channel as the bot
+ */
+export const sendChannelMessage = async (sendMessageBody: SendMessageBody, options?: Parameters<typeof customFetch>[1]): Promise<SentMessage> => {
+
+  return customFetch<SentMessage>(getSendChannelMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendMessageBody)
+  }
+);}
+
+
+
+
+
+export const getSendChannelMessageMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChannelMessage>>, TError,{data: BodyType<SendMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendChannelMessage>>, TError,{data: BodyType<SendMessageBody>}, TContext> => {
+
+const mutationKey = ['sendChannelMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendChannelMessage>>, {data: BodyType<SendMessageBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendChannelMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendChannelMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendChannelMessage>>>
+    export type SendChannelMessageMutationBody = BodyType<SendMessageBody>
+    export type SendChannelMessageMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Send a message to a Discord channel as the bot
+ */
+export const useSendChannelMessage = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendChannelMessage>>, TError,{data: BodyType<SendMessageBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendChannelMessage>>,
+        TError,
+        {data: BodyType<SendMessageBody>},
+        TContext
+      > => {
+      return useMutation(getSendChannelMessageMutationOptions(options));
     }
 
 export const getGetInviteUrlUrl = (guildId: string,) => {

@@ -15,6 +15,7 @@ import {
   getGlobalCommands,
   getApplicationId,
   channelTypeName,
+  sendChannelMessage,
 } from "../lib/discordApi";
 import { logger } from "../lib/logger";
 
@@ -197,6 +198,22 @@ router.get("/admin/commands", requireAdmin, async (req: Request, res: Response):
   } catch (err) {
     logger.error({ err }, "Failed to fetch commands");
     res.status(502).json({ error: "Could not fetch commands" });
+  }
+});
+
+// ─── POST /admin/send-message ─────────────────────────────────────────────
+router.post("/admin/send-message", requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { channelId, content } = req.body as { channelId?: string; content?: string };
+  if (!channelId || !content?.trim()) {
+    res.status(400).json({ error: "channelId and content are required" });
+    return;
+  }
+  try {
+    const msg = await sendChannelMessage(channelId, content.trim());
+    res.json({ ok: true, messageId: msg.id });
+  } catch (err) {
+    logger.error({ err, channelId }, "Failed to send message");
+    res.status(502).json({ error: "Could not send message — check bot permissions for that channel" });
   }
 });
 
