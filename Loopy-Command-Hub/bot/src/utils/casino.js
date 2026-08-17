@@ -89,7 +89,7 @@ function bjEmbed(game, { hideDealer = true, status = null, color = config.colors
   const dv = handValue(dealerShown);
   return Embed.base({
     color,
-    title: '🂡 Blackjack',
+    title: '🃏 Blackjack',
     description: status ? `${status}` : `Bet: **${fmt(game.wager)}** coins — Hit, Stand, or Double Down?`,
     fields: [
       Embed.field(`Your Hand — ${pv}`, handStr(game.player), true),

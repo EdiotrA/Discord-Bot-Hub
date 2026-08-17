@@ -15,7 +15,7 @@ function arcadeEmbed(interaction) {
       `Welcome to the arcade, **${interaction.user.displayName}**!`,
       '',
       '**🎰 Casino** — bet your coins',
-      '> 🂡 Blackjack · 🎡 Roulette · 🎰 Slots · 🪙 Coinflip · 🎲 Dice Duel',
+      '> 🃏 Blackjack · 🎡 Roulette · 🎰 Slots · 🪙 Coinflip · 🎲 Dice Duel',
       '',
       '**🎮 Classics** — free to play',
       '> `/trivia` `/tictactoe` `/rps` `/numberguess` `/8ball`',
@@ -35,7 +35,7 @@ function arcadeEmbed(interaction) {
 
 function arcadeRow(userId) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`arcade:pick_bj:0:${userId}`).setLabel('Blackjack').setEmoji('🂡').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`arcade:pick_bj:0:${userId}`).setLabel('Blackjack').setEmoji('🃏').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`arcade:pick_rl:0:${userId}`).setLabel('Roulette').setEmoji('🎡').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`arcade:pick_slots:0:${userId}`).setLabel('Slots').setEmoji('🎰').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`arcade:pick_cf:0:${userId}`).setLabel('Coinflip').setEmoji('🪙').setStyle(ButtonStyle.Secondary),
@@ -43,7 +43,7 @@ function arcadeRow(userId) {
   );
 }
 
-const GAME_NAMES = { bj: '🂡 Blackjack', rl: '🎡 Roulette', slots: '🎰 Slots', cf: '🪙 Coinflip', dd: '🎲 Dice Duel' };
+const GAME_NAMES = { bj: '🃏 Blackjack', rl: '🎡 Roulette', slots: '🎰 Slots', cf: '🪙 Coinflip', dd: '🎲 Dice Duel' };
 
 module.exports = {
   data: new SlashCommandBuilder().setName('games').setDescription('List all available games and fun commands'),
