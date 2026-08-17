@@ -61,18 +61,23 @@ async function autoJoinGuild(guildId, userId, accessToken, botToken) {
  * status: 'success' | 'failed' | 'timeout' | 'pending'
  */
 async function logVerification(interaction, description, status = 'success', robloxUsername = null) {
+  // interaction.guild is null when called from a DM context — guard everywhere
+  const gid = interaction.guild?.id ?? interaction.guildId;
+  if (!gid) return; // no guild context at all, skip
+
   // Persist to DB
   try {
     db.prepare(
       `INSERT INTO verify_logs (guild_id, discord_user_id, roblox_username, status, reason)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(interaction.guild.id, interaction.user.id, robloxUsername, status, description);
+    ).run(gid, interaction.user.id, robloxUsername, status, description);
   } catch { /* non-fatal */ }
 
   // Post to log channel if configured
-  const channelId = getSetting(interaction.guild.id, 'verify_log_channel');
+  const channelId = getSetting(gid, 'verify_log_channel');
   if (!channelId) return;
-  const channel = interaction.guild.channels.cache.get(channelId);
+  const guild = interaction.guild ?? interaction.client?.guilds?.cache?.get(gid);
+  const channel = guild?.channels?.cache?.get(channelId);
   if (!channel) return;
 
   const success = status === 'success';
@@ -333,36 +338,46 @@ async function handleVerifyModal(interaction) {
 async function handleOAuthContinue(interaction) {
   await interaction.deferReply({ ephemeral: true });
   const userId = interaction.user.id;
-  const gid = interaction.guild.id;
 
-  // Retrieve pending state
-  const pending = db.prepare(
-    'SELECT * FROM verify_oauth_pending WHERE user_id = ? AND guild_id = ?',
-  ).get(userId, gid);
+  // Button fires from a DM — interaction.guild is null here.
+  // Read guild_id from the pending record we stored when OAuth was initiated.
+  const pendingRow = db.prepare(
+    'SELECT * FROM verify_oauth_pending WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+  ).get(userId);
 
-  if (!pending) {
+  if (!pendingRow) {
     return interaction.editReply({
-      embeds: [Embed.warning('Session Expired', 'Your verification session expired. Run `/verify` to start again.')],
+      embeds: [Embed.warning('Session Expired', 'Your verification session expired. Run `/verify` in the server to start again.')],
     });
   }
+
+  const gid = pendingRow.guild_id;
+
+  // Fetch the guild object so we can assign roles later
+  const guild = interaction.client.guilds.cache.get(gid);
 
   const oauthToken = getOAuthToken(userId);
   if (!oauthToken) {
     // Token still not present — resend OAuth link
-    const state = Buffer.from(`${gid}:${userId}:${pending.roblox_username}`, 'utf8').toString('base64url');
-    const oauthUrl = `https://${process.env.REPLIT_DEV_DOMAIN}/api/oauth/discord?state=${state}`;
+    const state = Buffer.from(`${gid}:${userId}:${pendingRow.roblox_username}`, 'utf8').toString('base64url');
+    const redirectBase = process.env.OAUTH_REDIRECT_URI
+      ? process.env.OAUTH_REDIRECT_URI.replace('/oauth/discord/callback', '')
+      : `https://${process.env.REPLIT_DEV_DOMAIN}/api`;
+    const oauthUrl = `${redirectBase}/oauth/discord?state=${state}`;
     return interaction.editReply({
-      embeds: [Embed.warning('Not Authorized Yet', 'Loopy hasn\'t received your authorization yet. Click Authorize first, then come back.')],
+      embeds: [Embed.warning('Not Authorized Yet', "Loopy hasn't received your authorization yet. Click Authorize first, then come back.")],
       components: [new ActionRowBuilder().addComponents(
         new ButtonBuilder().setLabel('Authorize Loopy').setStyle(ButtonStyle.Link).setURL(oauthUrl),
       )],
     });
   }
 
-  // Re-resolve user for safety
+  // Check / auto-join required servers
   const joinServers = getSetting(gid, 'verify_join_servers') || [];
   if (Array.isArray(joinServers) && joinServers.length) {
-    const result = await checkJoinServers(interaction, joinServers, oauthToken);
+    // checkJoinServers needs interaction.guild for bot-in-guild check — pass a shim
+    const shimInteraction = { ...interaction, guild, client: interaction.client, user: interaction.user };
+    const result = await checkJoinServers(shimInteraction, joinServers, oauthToken);
     if (!result.ok) {
       const linkButtons = result.pending.slice(0, 4).map((inv, i) =>
         new ButtonBuilder()
@@ -372,18 +387,17 @@ async function handleOAuthContinue(interaction) {
       );
       return interaction.editReply({
         embeds: [Embed.warning('Still Missing Servers',
-          `Loopy added you where it could, but you need to manually join:\n${result.pending.map(s => `• ${s}`).join('\n')}`)],
+          `Loopy added you where it could, but you still need to manually join:\n${result.pending.map(s => `• ${s}`).join('\n')}`)],
         components: [new ActionRowBuilder().addComponents(...linkButtons)],
       });
     }
   }
 
-  // All servers joined — re-run verify from the username step
-  // Construct a synthetic "interaction" isn't possible cleanly, so re-verify directly.
-  const user = await Roblox.getUserByUsername(pending.roblox_username);
+  // Look up Roblox user
+  const user = await Roblox.getUserByUsername(pendingRow.roblox_username);
   if (!user) {
     return interaction.editReply({
-      embeds: [Embed.error('Roblox User Not Found', `Could not find **${pending.roblox_username}**. Run \`/verify\` again.`)],
+      embeds: [Embed.error('Roblox User Not Found', `Could not find **${pendingRow.roblox_username}**. Run \`/verify\` again.`)],
     });
   }
 
@@ -407,29 +421,47 @@ async function handleOAuthContinue(interaction) {
         answers.push(col.first().content);
       } catch {
         await dmChannel.send({ embeds: [Embed.error('Timed Out', 'Verification cancelled.')] });
-        await logVerification(interaction, `❌ <@${userId}> timed out on verification questions as **${user.name}**.`, 'timeout', user.name);
+        // log without guild context
+        db.prepare(`INSERT INTO verify_logs (guild_id, discord_user_id, roblox_username, status, reason) VALUES (?, ?, ?, ?, ?)`)
+          .run(gid, userId, user.name, 'timeout', 'Timed out on questions');
         return;
       }
     }
     const aiResult = await AI.evaluateVerifyAnswers(questions, answers, context);
     if (!aiResult.approved) {
       await dmChannel.send({ embeds: [Embed.error('Verification Failed', `**Reason:** ${aiResult.reason}`)] });
-      await logVerification(interaction, `❌ <@${userId}> failed AI verification as **${user.name}** — ${aiResult.reason}`, 'failed', user.name);
+      db.prepare(`INSERT INTO verify_logs (guild_id, discord_user_id, roblox_username, status, reason) VALUES (?, ?, ?, ?, ?)`)
+        .run(gid, userId, user.name, 'failed', aiResult.reason);
       return;
     }
   }
 
-  // Save
+  // Save verification
   db.prepare(
     `INSERT OR REPLACE INTO verifications (guild_id, discord_user_id, roblox_user_id, roblox_username)
      VALUES (?, ?, ?, ?)`,
   ).run(gid, userId, String(user.id), user.name);
   db.prepare('DELETE FROM verify_oauth_pending WHERE user_id = ? AND guild_id = ?').run(userId, gid);
 
-  const verifiedRole = getSetting(gid, 'verified_role');
-  if (verifiedRole) {
-    const role = interaction.guild.roles.cache.get(verifiedRole);
-    if (role) await interaction.member.roles.add(role).catch(() => {});
+  // Assign verified role (guild may be null if bot left, so guard)
+  if (guild) {
+    const verifiedRoleId = getSetting(gid, 'verified_role');
+    if (verifiedRoleId) {
+      const role = guild.roles.cache.get(verifiedRoleId);
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (role && member) await member.roles.add(role).catch(() => {});
+    }
+  }
+
+  // Log
+  db.prepare(`INSERT INTO verify_logs (guild_id, discord_user_id, roblox_username, status, reason) VALUES (?, ?, ?, ?, ?)`)
+    .run(gid, userId, user.name, 'success', 'OAuth continue flow');
+
+  // Post to verify log channel if configured
+  const logChannelId = getSetting(gid, 'verify_log_channel');
+  if (logChannelId && guild) {
+    const ch = guild.channels.cache.get(logChannelId);
+    if (ch) await ch.send({ embeds: [Embed.success('Verification Log', `✅ <@${userId}> verified as **${user.name}** (ID: \`${user.id}\`) via OAuth flow.`)] }).catch(() => {});
   }
 
   const thumbnail = await Roblox.getUserThumbnail(user.id);
@@ -437,7 +469,6 @@ async function handleOAuthContinue(interaction) {
     embeds: [Embed.roblox('Verified! ✅', `You are now verified as **${user.name}**.`,
       [{ name: 'Roblox ID', value: String(user.id), inline: true }], thumbnail)],
   });
-  await logVerification(interaction, `✅ <@${userId}> verified as **${user.name}** (ID: \`${user.id}\`).`, 'success', user.name);
 }
 
 // ─── Legacy "I've Joined" button ──────────────────────────────────────────────

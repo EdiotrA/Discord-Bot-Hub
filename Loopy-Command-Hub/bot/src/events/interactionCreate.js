@@ -70,7 +70,16 @@ module.exports = {
 
       if (interaction.customId === 'verify_oauth_continue') {
         const { handleOAuthContinue } = require('../commands/roblox/verify');
-        return handleOAuthContinue(interaction);
+        return handleOAuthContinue(interaction).catch(async err => {
+          console.error('[Verify OAuth Continue] Error:', err);
+          const Embed = require('../utils/embed');
+          const msg = { embeds: [Embed.error('Verification Error', `Something went wrong: \`${err.message?.slice(0, 200)}\``)] };
+          if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(msg).catch(() => {});
+          } else {
+            await interaction.reply({ ...msg, ephemeral: true }).catch(() => {});
+          }
+        });
       }
 
       if (interaction.customId === 'verify_start') {
