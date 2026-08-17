@@ -40,6 +40,8 @@ module.exports = {
         'setgroup',
         'botjoingroup',
         'groupinfo',
+        // Verify log exposed as /setup verifylog subcommand
+        'verifylog',
       ]);
       const commands = [...client.commands.values()]
         .filter(command => !hiddenLegacyCommands.has(command.data.name))

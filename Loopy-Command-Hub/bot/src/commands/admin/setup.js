@@ -1,6 +1,9 @@
 const { SlashCommandBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 const Embed = require('../../utils/embed');
-const { getSetting, setSetting } = require('../../database');
+const config = require('../../config');
+const { db, getSetting, setSetting } = require('../../database');
+
+const STATUS_EMOJI = { success: '✅', failed: '❌', timeout: '⏱️', pending: '⏳' };
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -27,11 +30,44 @@ module.exports = {
       .addChannelOption(o => o.setName('channel').setDescription('Verification log channel').setRequired(true).addChannelTypes(ChannelType.GuildText)))
     .addSubcommand(s => s.setName('verifyjoinserver').setDescription('Require joining a server during verification')
       .addStringOption(o => o.setName('invite').setDescription('Discord invite link members must join (e.g. https://discord.gg/abc)').setRequired(true)))
-    .addSubcommand(s => s.setName('verifyjoinclear').setDescription('Remove all required servers from verification')),
+    .addSubcommand(s => s.setName('verifyjoinclear').setDescription('Remove all required servers from verification'))
+    .addSubcommand(s => s.setName('verifylog').setDescription('View recent verification attempts')
+      .addIntegerOption(o => o.setName('limit').setDescription('Number of entries (default 10, max 25)').setMinValue(1).setMaxValue(25))),
   async execute(interaction) {
     await interaction.deferReply({ ephemeral: true });
     const sub = interaction.options.getSubcommand();
     const gid = interaction.guildId;
+
+    if (sub === 'verifylog') {
+      const limit = interaction.options.getInteger('limit') ?? 10;
+      const rows = db.prepare(
+        'SELECT * FROM verify_logs WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?',
+      ).all(gid, limit);
+
+      if (!rows.length) {
+        return interaction.editReply({ embeds: [Embed.info('Verification Logs', 'No verification attempts recorded yet.')] });
+      }
+
+      const lines = rows.map(r => {
+        const emoji = STATUS_EMOJI[r.status] || '❓';
+        const time = `<t:${r.created_at}:R>`;
+        const roblox = r.roblox_username ? ` — \`${r.roblox_username}\`` : '';
+        return `${emoji} <@${r.discord_user_id}>${roblox} ${time}`;
+      });
+      const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+      const summary = Object.entries(counts).map(([s, n]) => `${STATUS_EMOJI[s] || '❓'} **${s}:** ${n}`).join(' · ');
+
+      return interaction.editReply({
+        embeds: [Embed.base({
+          color: config.colors.primary,
+          emoji: '📋',
+          title: `Verification Log — Last ${rows.length}`,
+          description: lines.join('\n'),
+          fields: [{ name: 'Summary', value: summary, inline: false }],
+          footer: 'Verification Logs',
+        })],
+      });
+    }
 
     if (sub === 'verifyjoinserver') {
       const invite = interaction.options.getString('invite').trim();

@@ -147,6 +147,32 @@ db.exec(`
     order_num INTEGER DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS discord_oauth_tokens (
+    user_id TEXT PRIMARY KEY,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    scope TEXT,
+    expires_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS verify_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    discord_user_id TEXT NOT NULL,
+    roblox_username TEXT,
+    status TEXT NOT NULL,
+    reason TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS verify_oauth_pending (
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    roblox_username TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    PRIMARY KEY (user_id, guild_id)
+  );
+
   CREATE TABLE IF NOT EXISTS exp (
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,

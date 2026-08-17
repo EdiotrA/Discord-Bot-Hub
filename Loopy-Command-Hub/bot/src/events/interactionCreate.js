@@ -68,6 +68,11 @@ module.exports = {
         return handleVerifyJoined(interaction);
       }
 
+      if (interaction.customId === 'verify_oauth_continue') {
+        const { handleOAuthContinue } = require('../commands/roblox/verify');
+        return handleOAuthContinue(interaction);
+      }
+
       if (interaction.customId === 'verify_start') {
         const { buildVerifyModal } = require('../commands/roblox/verify');
         return interaction.showModal(buildVerifyModal());

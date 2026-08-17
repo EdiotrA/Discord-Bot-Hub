@@ -1,6 +1,6 @@
 const Anthropic = require('@anthropic-ai/sdk');
 
-const MODEL = 'claude-haiku-4-5'; // Fast model for bot responses
+const MODEL = 'claude-haiku-4-5';
 let client;
 let remoteUnavailableUntil = 0;
 let remoteErrorLogged = false;
@@ -18,7 +18,7 @@ const localResponses = {
 
 const localRoasts = [
   'Your code has the confidence of production and the testing history of a group project.',
-  'You bring main-character energy to a bug report that says “it just doesn’t work.”',
+  'You bring main-character energy to a bug report that says "it just doesn\'t work."',
   'Your tabs have formed a committee and voted to keep the answer hidden.',
   'That was a bold choice—the kind that creates a new warning in the logs.',
   'Your server has more channels than your code has comments, and both are hard to navigate.',
@@ -41,8 +41,8 @@ function pick(items, seed = '') {
 function localAssistant(prompt, context = '') {
   const text = String(prompt || '').trim();
   const normalized = text.toLowerCase();
-  if (!text) return 'Tell me what you need help with and I’ll do my best.';
-  if (/^(hi|hey|hello|yo|sup)\b/.test(normalized)) return 'Hey! I’m Loopy. Ask me about the server, music, tickets, coding, UI ideas, or debugging.';
+  if (!text) return "Tell me what you need help with and I'll do my best.";
+  if (/^(hi|hey|hello|yo|sup)\b/.test(normalized)) return "Hey! I'm Loopy. Ask me about the server, music, tickets, coding, UI ideas, or debugging.";
   if (/music|song|youtube|voice|playback|silent|audio/.test(normalized)) return localResponses.music;
   if (/setup|configure|dashboard|server settings/.test(normalized)) return localResponses.setup;
   if (/ticket|support|helper/.test(normalized)) return localResponses.ticket;
@@ -52,9 +52,9 @@ function localAssistant(prompt, context = '') {
   if (/ui|design|layout|button|dashboard|embed|visual/.test(normalized)) return localResponses.ui;
   if (/help|command|what can you do|how do i/.test(normalized)) return localResponses.help;
   if (context && /same|that|it|this/.test(normalized)) {
-    return `I’m using the recent conversation as context. Start by sharing the exact result you want, then the command or error involved.\n\n**Recent context:** ${context.slice(-240)}`;
+    return `I'm using the recent conversation as context. Start by sharing the exact result you want, then the command or error involved.\n\n**Recent context:** ${context.slice(-240)}`;
   }
-  return `I’m Loopy’s local assistant, so I can help with server setup, music, tickets, protection, Roblox verification, coding, UI ideas, and debugging. For “${text.slice(0, 160)}”, tell me the outcome you want and I’ll break it into steps.`;
+  return `I'm Loopy's assistant — I can help with server setup, music, tickets, protection, Roblox verification, coding, UI ideas, and debugging. For "${text.slice(0, 160)}", tell me the outcome you want and I'll break it into steps.`;
 }
 
 function getClient() {
@@ -72,7 +72,24 @@ function getClient() {
 }
 
 /**
- * Send a message to Claude and get a response
+ * Extract a JSON object/array from a string that may contain prose or fences.
+ */
+function extractJson(text) {
+  if (!text) return null;
+  // Strip code fences
+  const stripped = text.replace(/```json?|```/g, '').trim();
+  // Try direct parse first
+  try { return JSON.parse(stripped); } catch { /* fall through */ }
+  // Find first {...} block
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (match) {
+    try { return JSON.parse(match[0]); } catch { /* fall through */ }
+  }
+  return null;
+}
+
+/**
+ * Send a message to Claude and get a response.
  */
 async function ask(prompt, systemPrompt = null, maxTokens = 1024) {
   try {
@@ -82,33 +99,59 @@ async function ask(prompt, systemPrompt = null, maxTokens = 1024) {
     const params = { model: MODEL, max_tokens: maxTokens, messages };
     if (systemPrompt) params.system = systemPrompt;
     const response = await anthropic.messages.create(params);
+    // Reset error state on success
+    remoteUnavailableUntil = 0;
+    remoteErrorLogged = false;
     return response.content[0]?.text || 'No response generated.';
   } catch (err) {
     if (!remoteErrorLogged) {
-      console.error('[AI] Remote provider unavailable; using Loopy local AI:', err.message);
+      console.error('[AI] Remote provider unavailable; using local AI:', err.message);
       remoteErrorLogged = true;
     }
-    remoteUnavailableUntil = Date.now() + 10 * 60 * 1000;
+    // 2-minute cooldown instead of 10 — recovers faster after transient errors
+    remoteUnavailableUntil = Date.now() + 2 * 60 * 1000;
     return null;
   }
 }
 
 /**
- * Read rules from a channel and determine punishment for a violation
+ * Evaluate verify answers against owner-defined questions and context.
+ * Returns { approved, reason, confidence }.
+ * When AI is unavailable, skips evaluation and approves (logs the skip).
  */
-async function evaluateRuleViolation(rulesText, violationDescription) {
-  const prompt = `Here are the server rules:\n\n${rulesText}\n\nA user has committed this violation: "${violationDescription}"\n\nBased on the rules, what should the punishment be? Respond with a JSON object: {"action":"warn|mute|kick|ban","duration":"Xm/Xh/Xd or null","reason":"brief reason"}.  Only respond with the JSON, nothing else.`;
+async function evaluateVerifyAnswers(questions, answers, context = '') {
+  const qa = questions.map((q, i) => `Q: ${q}\nA: ${answers[i] || 'No answer'}`).join('\n\n');
+  const prompt = `${context ? `Server context: ${context}\n\n` : ''}A user is applying to join a Discord server. Evaluate their verification answers:\n\n${qa}\n\nDetermine if they should be approved. Respond with ONLY a JSON object: {"approved":true,"reason":"brief reason","confidence":"high|medium|low"}`;
+
   const result = await ask(prompt);
-  if (!result) return { action: 'warn', duration: null, reason: 'Rule violation' };
-  try {
-    return JSON.parse(result.replace(/```json?|```/g, '').trim());
-  } catch {
-    return { action: 'warn', duration: null, reason: 'Rule violation' };
+  if (!result) {
+    // AI unavailable — skip AI evaluation rather than blocking all verifications
+    console.warn('[AI] evaluateVerifyAnswers: AI unavailable, skipping evaluation (approving).');
+    return { approved: true, reason: 'AI evaluation skipped (service unavailable)', confidence: 'low' };
   }
+
+  const parsed = extractJson(result);
+  if (!parsed || typeof parsed.approved !== 'boolean') {
+    // Malformed response — log and approve rather than silently blocking
+    console.warn('[AI] evaluateVerifyAnswers: Could not parse AI response, approving.\nRaw:', result.slice(0, 200));
+    return { approved: true, reason: 'AI response could not be parsed', confidence: 'low' };
+  }
+  return parsed;
 }
 
 /**
- * Read and summarize info for a topic (used by info channels)
+ * Read rules from a channel and determine punishment for a violation.
+ */
+async function evaluateRuleViolation(rulesText, violationDescription) {
+  const prompt = `Here are the server rules:\n\n${rulesText}\n\nA user has committed this violation: "${violationDescription}"\n\nBased on the rules, what should the punishment be? Respond with ONLY a JSON object: {"action":"warn|mute|kick|ban","duration":"Xm/Xh/Xd or null","reason":"brief reason"}`;
+  const result = await ask(prompt);
+  if (!result) return { action: 'warn', duration: null, reason: 'Rule violation' };
+  const parsed = extractJson(result);
+  return parsed || { action: 'warn', duration: null, reason: 'Rule violation' };
+}
+
+/**
+ * Generate a concise update for an info channel.
  */
 async function generateInfo(topic, guildContext = '') {
   const remote = await ask(
@@ -118,22 +161,7 @@ async function generateInfo(topic, guildContext = '') {
 }
 
 /**
- * Evaluate verify answers against owner-defined questions and context
- */
-async function evaluateVerifyAnswers(questions, answers, context = '') {
-  const qa = questions.map((q, i) => `Q: ${q}\nA: ${answers[i] || 'No answer'}`).join('\n\n');
-  const prompt = `${context ? `Server context: ${context}\n\n` : ''}A user is applying to be verified in a Discord server. Evaluate their answers:\n\n${qa}\n\nDetermine if they should be verified. Respond with JSON: {"approved":true/false,"reason":"brief reason","confidence":"high|medium|low"}. Only respond with JSON.`;
-  const result = await ask(prompt);
-  if (!result) return { approved: false, reason: 'Could not evaluate', confidence: 'low' };
-  try {
-    return JSON.parse(result.replace(/```json?|```/g, '').trim());
-  } catch {
-    return { approved: false, reason: 'Could not evaluate answers', confidence: 'low' };
-  }
-}
-
-/**
- * Generate a roast or compliment for fun commands
+ * Generate a roast or compliment for fun commands.
  */
 async function generateRoast(username) {
   const remote = await ask(
@@ -150,7 +178,7 @@ async function generateCompliment(username) {
 }
 
 /**
- * Answer a question about a server (info lookup)
+ * Answer a question about a server (info lookup).
  */
 async function answerQuestion(question, context) {
   const remote = await ask(
@@ -161,7 +189,7 @@ async function answerQuestion(question, context) {
 }
 
 /**
- * Read background check data and summarize
+ * Read background check data and summarize.
  */
 async function summarizeBackgroundCheck(data) {
   const prompt = `Summarize this Discord/Roblox user background check data in a professional, concise format for a moderator:\n\n${JSON.stringify(data, null, 2)}\n\nHighlight any red flags. Keep under 300 words.`;
@@ -170,7 +198,6 @@ async function summarizeBackgroundCheck(data) {
 
 /**
  * Respond to a ticket using the owner-provided natural-language instructions.
- * This is intentionally response-only: Claude cannot execute Discord actions.
  */
 async function answerTicket(instructions, category, transcript) {
   const remote = await ask(
@@ -181,9 +208,7 @@ async function answerTicket(instructions, category, transcript) {
 }
 
 /**
- * General assistant for members who mention Loopy. It can explain code,
- * suggest UI improvements, and answer server questions without claiming
- * that it changed files or performed a staff action.
+ * General assistant for members who mention Loopy.
  */
 async function answerAssistant(prompt, context = '') {
   const systemPrompt = `You are Loopy, a helpful Discord assistant.
